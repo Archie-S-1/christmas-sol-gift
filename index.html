@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Christmas SOL Gift</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      min-height: 100vh;
+      color: #fff;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      font-size: 32px;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      font-size: 14px;
+      color: #cbd5e1;
+    }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 2rem;
+      border-bottom: 1px solid #334155;
+    }
+
+    .tab-btn {
+      padding: 12px 24px;
+      background: none;
+      border: none;
+      color: #cbd5e1;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 500;
+      border-bottom: 2px solid transparent;
+      transition: all 150ms;
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      border-bottom-color: #3b82f6;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .input-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #cbd5e1;
+    }
+
+    .input-group input {
+      width: 100%;
+      padding: 12px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 15px;
+      font-family: inherit;
+    }
+
+    .input-group input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      background: #1e293b;
+    }
+
+    .input-group input::placeholder {
+      color: #64748b;
+    }
+
+    .error {
+      color: #ef4444;
+      font-size: 13px;
+      margin-top: 0.5rem;
+    }
+
+    .success {
+      color: #10b981;
+      font-size: 13px;
+      margin-top: 0.5rem;
+      text-align: center;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px 16px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 150ms;
+    }
+
+    button:hover:not(:disabled) {
+      background: #2563eb;
+    }
+
+    button:disabled {
+      background: #64748b;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    .recipient-box {
+      background: #0f172a;
+      border: 2px dashed #334155;
+      border-radius: 8px;
+      padding: 1.5rem;
+      text-align: center;
+      margin: 1.5rem 0;
+      display: none;
+    }
+
+    .recipient-box.show {
+      display: block;
+    }
+
+    .recipient-label {
+      font-size: 12px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 0.75rem;
+    }
+
+    .recipient-address {
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      color: #60a5fa;
+      word-break: break-all;
+      margin-bottom: 1rem;
+      user-select: all;
+    }
+
+    .recipient-name {
+      color: #fff;
+      font-size: 15px;
+      margin-bottom: 0.5rem;
+    }
+
+    .copy-btn {
+      background: #10b981;
+      width: auto;
+      padding: 8px 16px;
+      display: inline-block;
+      font-size: 13px;
+    }
+
+    .copy-btn:hover:not(:disabled) {
+      background: #059669;
+    }
+
+    .leaderboard {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .leaderboard-item {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .leaderboard-item.gold {
+      background: #78350f;
+      border-color: #92400e;
+    }
+
+    .leaderboard-item.silver {
+      background: #374151;
+      border-color: #4b5563;
+    }
+
+    .leaderboard-item.bronze {
+      background: #5a3a1a;
+      border-color: #78350f;
+    }
+
+    .leaderboard-rank {
+      font-size: 20px;
+      font-weight: 700;
+      margin-right: 1rem;
+      min-width: 30px;
+    }
+
+    .leaderboard-info {
+      flex: 1;
+    }
+
+    .leaderboard-name {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .leaderboard-addr {
+      font-size: 12px;
+      color: #94a3b8;
+      font-family: monospace;
+    }
+
+    .leaderboard-amount {
+      font-size: 18px;
+      font-weight: 700;
+      color: #60a5fa;
+      text-align: right;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 2rem;
+      color: #64748b;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 24px;
+      font-weight: 700;
+      color: #60a5fa;
+      margin-bottom: 0.25rem;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .snowflake {
+      position: fixed;
+      color: #fff;
+      font-size: 24px;
+      opacity: 0.1;
+      pointer-events: none;
+      animation: drift 10s linear infinite;
+    }
+
+    @keyframes drift {
+      0% { transform: translateY(-50px) rotate(0deg); opacity: 0.1; }
+      50% { opacity: 0.1; }
+      100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+    }
+
+    .confirm-btn {
+      display: none;
+      background: #10b981 !important;
+      margin-top: 1rem;
+    }
+
+    .confirm-btn.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="snowflake" style="left: 10%; animation-delay: 0s;">❄️</div>
+  <div class="snowflake" style="left: 30%; animation-delay: 2s;">❄️</div>
+  <div class="snowflake" style="left: 50%; animation-delay: 4s;">❄️</div>
+  <div class="snowflake" style="left: 70%; animation-delay: 1s;">❄️</div>
+  <div class="snowflake" style="left: 90%; animation-delay: 3s;">❄️</div>
+
+  <div class="container">
+    <div class="header">
+      <h1>🎄 Christmas SOL Gift</h1>
+      <p>Spread holiday joy to the community</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(event, 'signup')">Join Community</button>
+      <button class="tab-btn" onclick="switchTab(event, 'gift')">Send Gift</button>
+      <button class="tab-btn" onclick="switchTab(event, 'leaderboard')">Leaderboard</button>
+    </div>
+
+    <div id="signup" class="tab-content active">
+      <div class="card">
+        <h2 style="margin-bottom: 1.5rem;">Sign Up to Receive Gifts</h2>
+        <div class="input-group">
+          <label>Name</label>
+          <input type="text" id="signupName" placeholder="Your name" />
+          <div id="nameError" class="error"></div>
+        </div>
+
+        <div class="input-group">
+          <label>Solana Address</label>
+          <input type="text" id="signupAddress" placeholder="9B5X5n4UQjVP7K3j9mN6pLqRsT2uVwXyZaBcDeF" />
+          <div id="addressError" class="error"></div>
+        </div>
+
+        <button id="signupBtn" onclick="signup()">Join the Community</button>
+        <div id="signupSuccess" class="success"></div>
+      </div>
+    </div>
+
+    <div id="gift" class="tab-content">
+      <div class="card">
+        <h2 style="margin-bottom: 1.5rem;">Send a Gift</h2>
+
+        <div class="input-group">
+          <label>Your Name (to verify you're registered)</label>
+          <input type="text" id="senderName" placeholder="Your name" />
+          <div id="senderError" class="error"></div>
+        </div>
+
+        <div class="input-group">
+          <label>SOL Amount</label>
+          <input type="number" id="giftAmount" placeholder="1.5" min="0.001" step="0.01" />
+          <div id="amountError" class="error"></div>
+        </div>
+
+        <button id="generateBtn" onclick="generateRecipient()">Generate Random Recipient</button>
+
+        <div id="recipientBox" class="recipient-box">
+          <div class="recipient-label">Send SOL to:</div>
+          <div class="recipient-name" id="recipientName"></div>
+          <div class="recipient-address" id="recipientAddress"></div>
+          <button class="copy-btn" onclick="copyAddress()">📋 Copy Address</button>
+        </div>
+
+        <button id="confirmBtn" class="confirm-btn" onclick="confirmGift()">I've Sent the Gift</button>
+
+        <div id="giftSuccess" class="success"></div>
+      </div>
+    </div>
+
+    <div id="leaderboard" class="tab-content">
+      <div class="card">
+        <h2 style="margin-bottom: 1.5rem;">Top Gifters 🎅</h2>
+
+        <div class="stats">
+          <div class="stat-card">
+            <div class="stat-number" id="totalGifts">0</div>
+            <div class="stat-label">Total SOL Gifted</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number" id="totalGifters">0</div>
+            <div class="stat-label">Community Members</div>
+          </div>
+        </div>
+
+        <div id="leaderboardList" class="leaderboard">
+          <div class="empty">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://dciojaucxwtbgsycjfyx.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjaW9qYXVjd3d0YmdzeWNqZnl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MDE5NTUsImV4cCI6MjEwNjI3Nzk1NX0.AIXPcE9L_zb8ST_PBZ-D7dNoVOnSivPtKCBuhv9QVpw';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    function switchTab(event, tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+      document.getElementById(tabName).classList.add('active');
+      event.target.classList.add('active');
+
+      if (tabName === 'leaderboard') {
+        loadLeaderboard();
+      }
+    }
+
+    function validateSolanaAddress(addr) {
+      return addr.length === 44 && /^[1-9A-HJ-NP-Z]*$/.test(addr);
+    }
+
+    async function signup() {
+      const name = document.getElementById('signupName').value.trim();
+      const address = document.getElementById('signupAddress').value.trim();
+
+      document.getElementById('nameError').textContent = '';
+      document.getElementById('addressError').textContent = '';
+
+      if (!name) {
+        document.getElementById('nameError').textContent = 'Please enter your name';
+        return;
+      }
+
+      if (!validateSolanaAddress(address)) {
+        document.getElementById('addressError').textContent = 'Invalid Solana address (must be 44 characters)';
+        return;
+      }
+
+      try {
+        const btn = document.getElementById('signupBtn');
+        btn.disabled = true;
+        btn.textContent = 'Joining...';
+
+        const { error } = await supabase.from('users').insert({
+          name: name,
+          address: address,
+        });
+
+        if (error) {
+          if (error.message.includes('unique')) {
+            document.getElementById('addressError').textContent = 'This address is already registered';
+          } else {
+            document.getElementById('nameError').textContent = error.message;
+          }
+        } else {
+          document.getElementById('signupSuccess').textContent = '✓ Welcome to the community! 🎄';
+          document.getElementById('signupName').value = '';
+          document.getElementById('signupAddress').value = '';
+          setTimeout(() => {
+            document.getElementById('signupSuccess').textContent = '';
+          }, 3000);
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Join the Community';
+      } catch (e) {
+        document.getElementById('nameError').textContent = 'Error: ' + e.message;
+        document.getElementById('signupBtn').disabled = false;
+      }
+    }
+
+    let selectedRecipient = null;
+
+    async function generateRecipient() {
+      const senderName = document.getElementById('senderName').value.trim();
+      const amount = parseFloat(document.getElementById('giftAmount').value);
+
+      document.getElementById('senderError').textContent = '';
+      document.getElementById('amountError').textContent = '';
+
+      if (!senderName) {
+        document.getElementById('senderError').textContent = 'Please enter your name';
+        return;
+      }
+
+      if (!amount || amount <= 0) {
+        document.getElementById('amountError').textContent = 'Please enter a valid amount';
+        return;
+      }
+
+      try {
+        const btn = document.getElementById('generateBtn');
+        btn.disabled = true;
+        btn.textContent = 'Finding someone special...';
+
+        const { data: users, error } = await supabase.from('users').select('*');
+
+        if (error) throw error;
+        if (users.length === 0) {
+          document.getElementById('amountError').textContent = 'No one in the community yet!';
+          btn.disabled = false;
+          btn.textContent = 'Generate Random Recipient';
+          return;
+        }
+
+        selectedRecipient = users[Math.floor(Math.random() * users.length)];
+
+        document.getElementById('recipientName').textContent = selectedRecipient.name;
+        document.getElementById('recipientAddress').textContent = selectedRecipient.address;
+        document.getElementById('recipientBox').classList.add('show');
+        document.getElementById('confirmBtn').classList.add('show');
+
+        btn.disabled = false;
+        btn.textContent = 'Generate Random Recipient';
+      } catch (e) {
+        document.getElementById('amountError').textContent = 'Error: ' + e.message;
+        document.getElementById('generateBtn').disabled = false;
+      }
+    }
+
+    function copyAddress() {
+      const addr = document.getElementById('recipientAddress').textContent;
+      navigator.clipboard.writeText(addr).then(() => {
+        const btn = event.target;
+        btn.textContent = '✓ Copied!';
+        setTimeout(() => {
+          btn.textContent = '📋 Copy Address';
+        }, 2000);
+      });
+    }
+
+    async function confirmGift() {
+      const senderName = document.getElementById('senderName').value.trim();
+      const amount = parseFloat(document.getElementById('giftAmount').value);
+
+      if (!selectedRecipient) return;
+
+      try {
+        const btn = document.getElementById('confirmBtn');
+        btn.disabled = true;
+        btn.textContent = 'Recording gift...';
+
+        const { data: sender } = await supabase
+          .from('users')
+          .select('address')
+          .eq('name', senderName)
+          .single();
+
+        if (!sender) {
+          document.getElementById('senderError').textContent = 'You must be registered to send a gift';
+          btn.disabled = false;
+          btn.textContent = 'I\'ve Sent the Gift';
+          return;
+        }
+
+        const { error } = await supabase.from('gifts').insert({
+          from_address: sender.address,
+          to_address: selectedRecipient.address,
+          amount: amount,
+        });
+
+        if (error) throw error;
+
+        await supabase
+          .from('users')
+          .update({ total_gifted: (selectedRecipient.total_gifted || 0) + amount })
+          .eq('id', selectedRecipient.id);
+
+        document.getElementById('giftSuccess').textContent = `✓ Gift of ${amount} SOL recorded! 🎁`;
+
+        document.getElementById('giftAmount').value = '';
+        document.getElementById('recipientBox').classList.remove('show');
+        document.getElementById('confirmBtn').classList.remove('show');
+        selectedRecipient = null;
+
+        setTimeout(() => {
+          document.getElementById('giftSuccess').textContent = '';
+        }, 3000);
+
+        btn.disabled = false;
+        btn.textContent = 'I\'ve Sent the Gift';
+      } catch (e) {
+        document.getElementById('senderError').textContent = 'Error: ' + e.message;
+        document.getElementById('confirmBtn').disabled = false;
+      }
+    }
+
+    async function loadLeaderboard() {
+      try {
+        const { data: users } = await supabase
+          .from('users')
+          .select('*')
+          .order('total_gifted', { ascending: false });
+
+        const { data: gifts } = await supabase.from('gifts').select('amount');
+
+        const totalSol = gifts.reduce((sum, g) => sum + g.amount, 0);
+        document.getElementById('totalGifts').textContent = totalSol.toFixed(2);
+        document.getElementById('totalGifters').textContent = users.length;
+
+        const list = document.getElementById('leaderboardList');
+        if (users.length === 0) {
+          list.innerHTML = '<div class="empty">No one has gifted yet. Be the first! 🎅</div>';
+          return;
+        }
+
+        list.innerHTML = users
+          .filter(u => u.total_gifted > 0)
+          .map((user, i) => {
+            let className = '';
+            if (i === 0) className = 'gold';
+            else if (i === 1) className = 'silver';
+            else if (i === 2) className = 'bronze';
+
+            return `
+              <div class="leaderboard-item ${className}">
+                <div style="display: flex; align-items: center; flex: 1;">
+                  <div class="leaderboard-rank">#${i + 1}</div>
+                  <div class="leaderboard-info">
+                    <div class="leaderboard-name">${user.name}</div>
+                    <div class="leaderboard-addr">${user.address}</div>
+                  </div>
+                </div>
+                <div class="leaderboard-amount">${user.total_gifted.toFixed(2)} SOL</div>
+              </div>
+            `;
+          })
+          .join('');
+      } catch (e) {
+        document.getElementById('leaderboardList').innerHTML = `<div class="empty">Error: ${e.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
