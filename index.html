@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Christmas SOL Gift</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Comfortaa:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Comfortaa', cursive;
+      background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 50%, #1a3a2e 100%);
+      min-height: 100vh;
+      color: #fff;
+      overflow-x: hidden;
+    }
+
+    /* Background Image */
+    .background-image {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 600"><defs><linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" style="stop-color:%231a3f7a;stop-opacity:1" /><stop offset="100%" style="stop-color:%238bc4e8;stop-opacity:1" /></linearGradient></defs><rect width="1200" height="600" fill="url(%23skyGrad)"/><path d="M0,400 Q300,300 600,400 T1200,400 L1200,600 L0,600 Z" fill="white" opacity="0.95"/><ellipse cx="200" cy="250" rx="120" ry="100" fill="white" opacity="0.3"/><ellipse cx="1000" cy="200" rx="150" ry="120" fill="white" opacity="0.2"/></svg>');
+      background-size: cover;
+      background-position: center;
+      background-attachment: fixed;
+      z-index: 0;
+    }
+
+    /* Snowfall */
+    .snowfall {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 5;
+    }
+
+    .snowflake {
+      position: absolute;
+      color: #fff;
+      font-size: 20px;
+      opacity: 0.8;
+      animation: drift 15s linear infinite;
+      text-shadow: 0 0 5px rgba(255,255,255,0.8);
+    }
+
+    @keyframes drift {
+      0% {
+        transform: translateY(-100px) translateX(0) rotate(0deg);
+        opacity: 0;
+      }
+      10% { opacity: 0.8; }
+      90% { opacity: 0.8; }
+      100% {
+        transform: translateY(100vh) translateX(100px) rotate(360deg);
+        opacity: 0;
+      }
+    }
+
+    /* Top Navigation Menu */
+    .top-nav {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+    }
+
+    .menu-btn {
+      background: rgba(220, 53, 69, 0.9);
+      border: none;
+      color: white;
+      font-size: 28px;
+      padding: 12px 16px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+
+    .menu-btn:hover {
+      background: rgba(220, 53, 69, 1);
+      transform: scale(1.1);
+    }
+
+    .menu-dropdown {
+      display: none;
+      position: absolute;
+      top: 60px;
+      left: 0;
+      background: rgba(26, 71, 42, 0.95);
+      border: 2px solid #ffd700;
+      border-radius: 12px;
+      padding: 15px;
+      min-width: 200px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    .menu-dropdown.active {
+      display: block;
+    }
+
+    .menu-item {
+      padding: 12px 15px;
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+      color: #fff;
+      text-align: left;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .menu-item:hover {
+      background: rgba(255, 215, 0, 0.2);
+      padding-left: 20px;
+    }
+
+    .menu-item:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Santa Icon (Top Right) */
+    .santa-icon {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      font-size: 48px;
+      cursor: pointer;
+      z-index: 100;
+      animation: santaGlow 2s ease-in-out infinite;
+      filter: drop-shadow(0 0 10px rgba(220, 53, 69, 0.8));
+      transition: transform 0.2s ease;
+    }
+
+    .santa-icon:hover {
+      transform: scale(1.1);
+      filter: drop-shadow(0 0 20px rgba(220, 53, 69, 1));
+    }
+
+    @keyframes santaGlow {
+      0%, 100% {
+        filter: drop-shadow(0 0 10px rgba(220, 53, 69, 0.8));
+      }
+      50% {
+        filter: drop-shadow(0 0 25px rgba(220, 53, 69, 1));
+      }
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+      position: relative;
+      z-index: 10;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      background: rgba(220, 53, 69, 0.15);
+      border: 3px solid #ffd700;
+      border-radius: 20px;
+      padding: 2.5rem;
+      backdrop-filter: blur(10px);
+    }
+
+    .header h1 {
+      font-size: 52px;
+      margin-bottom: 0.5rem;
+      color: #fff;
+      text-shadow: 3px 3px 6px rgba(0,0,0,0.5);
+      font-family: 'Fredoka', sans-serif;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .header p {
+      color: #ffd700;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    /* Countdown */
+    .countdown {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+      gap: 12px;
+      margin-top: 1.5rem;
+    }
+
+    .countdown-item {
+      background: rgba(255, 215, 0, 0.1);
+      border: 2px solid #ffd700;
+      border-radius: 12px;
+      padding: 15px;
+      text-align: center;
+    }
+
+    .countdown-number {
+      font-size: 32px;
+      font-weight: 700;
+      color: #ffd700;
+      font-family: 'Fredoka', sans-serif;
+    }
+
+    .countdown-label {
+      font-size: 12px;
+      color: #e8f5e9;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-top: 6px;
+      font-weight: 600;
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 2rem;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 215, 0, 0.3);
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 12px;
+      background: transparent;
+      border: 2px solid transparent;
+      color: #fff;
+      cursor: pointer;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      font-family: 'Comfortaa', cursive;
+    }
+
+    .tab-btn.active {
+      background: rgba(255, 215, 0, 0.2);
+      border-color: #ffd700;
+      color: #ffd700;
+    }
+
+    .tab-btn:hover {
+      background: rgba(255, 215, 0, 0.15);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Form Styles */
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: #ffd700;
+      font-size: 16px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid rgba(255, 215, 0, 0.3);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-family: 'Comfortaa', cursive;
+      font-size: 14px;
+      transition: all 0.3s ease;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #ffd700;
+      background: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+    }
+
+    input::placeholder {
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Buttons */
+    button {
+      font-family: 'Comfortaa', cursive;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: none;
+      border-radius: 10px;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+      color: white;
+      font-size: 16px;
+      margin-top: 1rem;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(220, 53, 69, 0.4);
+    }
+
+    /* Leaderboard */
+    .leaderboard {
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(255, 215, 0, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+    }
+
+    .leaderboard-item {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      margin-bottom: 10px;
+      background: rgba(255, 215, 0, 0.05);
+      border-radius: 8px;
+      border-left: 4px solid #ffd700;
+    }
+
+    .rank {
+      font-weight: 700;
+      color: #ffd700;
+      margin-right: 15px;
+      font-size: 20px;
+      width: 40px;
+    }
+
+    .leaderboard-info {
+      flex: 1;
+    }
+
+    .leaderboard-name {
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 3px;
+    }
+
+    .leaderboard-amount {
+      color: #ffd700;
+      font-weight: 700;
+      font-size: 18px;
+    }
+
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: rgba(255, 215, 0, 0.1);
+      border: 2px solid #ffd700;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 28px;
+      font-weight: 700;
+      color: #ffd700;
+      margin-bottom: 5px;
+      font-family: 'Fredoka', sans-serif;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: #e8f5e9;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    /* Gift Feed */
+    .gift-feed {
+      background: rgba(255, 255, 255, 0.08);
+      border: 2px solid rgba(255, 215, 0, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(10px);
+    }
+
+    .gift-item {
+      padding: 12px;
+      background: rgba(255, 215, 0, 0.05);
+      border-radius: 8px;
+      margin-bottom: 10px;
+      border-left: 4px solid #ffd700;
+      font-size: 14px;
+    }
+
+    .gift-time {
+      color: #cbd5e1;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 100%);
+      border: 3px solid #ffd700;
+      border-radius: 20px;
+      padding: 40px;
+      max-width: 500px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      animation: modalPop 0.3s ease;
+    }
+
+    @keyframes modalPop {
+      0% {
+        transform: scale(0.8) translateY(-50px);
+        opacity: 0;
+      }
+      100% {
+        transform: scale(1) translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .modal-content h2 {
+      font-size: 36px;
+      margin-bottom: 20px;
+      font-family: 'Fredoka', sans-serif;
+      color: #ffd700;
+    }
+
+    .modal-content p {
+      color: #e8f5e9;
+      margin-bottom: 20px;
+      font-size: 16px;
+      line-height: 1.6;
+    }
+
+    .wallet-display {
+      background: rgba(255, 215, 0, 0.1);
+      border: 2px solid #ffd700;
+      border-radius: 10px;
+      padding: 15px;
+      margin: 20px 0;
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 12px;
+      color: #ffd700;
+    }
+
+    .copy-btn {
+      background: rgba(255, 215, 0, 0.2);
+      color: #ffd700;
+      border: 2px solid #ffd700;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      margin: 10px 5px;
+      transition: all 0.3s ease;
+    }
+
+    .copy-btn:hover {
+      background: #ffd700;
+      color: #1a472a;
+    }
+
+    .close-modal {
+      background: #dc3545;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      margin-top: 15px;
+      display: inline-block;
+    }
+
+    .close-modal:hover {
+      background: #c82333;
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 600px) {
+      .header h1 {
+        font-size: 36px;
+      }
+
+      .countdown {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .santa-icon {
+        font-size: 40px;
+      }
+
+      .menu-dropdown {
+        min-width: 150px;
+      }
+
+      .modal-content {
+        padding: 30px 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Background -->
+  <div class="background-image"></div>
+
+  <!-- Snowfall -->
+  <div class="snowfall" id="snowfall"></div>
+
+  <!-- Top Navigation -->
+  <div class="top-nav">
+    <button class="menu-btn" onclick="toggleMenu()">☰</button>
+    <div class="menu-dropdown" id="menuDropdown">
+      <div class="menu-item" onclick="switchTab(event, 'join')">🎄 Join Community</div>
+      <div class="menu-item" onclick="switchTab(event, 'gift')">🎁 Send Gift</div>
+      <div class="menu-item" onclick="switchTab(event, 'leaderboard')">🏆 Leaderboard</div>
+      <div class="menu-item" onclick="switchTab(event, 'feed')">📰 Gift Feed</div>
+    </div>
+  </div>
+
+  <!-- Santa Icon (Donate) -->
+  <div class="santa-icon" onclick="openDonateModal()">🎅</div>
+
+  <!-- Main Container -->
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🎄 Merry Christmas 🎄</h1>
+      <p>Spread SOL Gifts to Your Community!</p>
+      <div class="countdown" id="countdown"></div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab(event, 'join')">Join</button>
+      <button class="tab-btn" onclick="switchTab(event, 'gift')">Send Gift</button>
+      <button class="tab-btn" onclick="switchTab(event, 'leaderboard')">Leaderboard</button>
+      <button class="tab-btn" onclick="switchTab(event, 'feed')">Feed</button>
+    </div>
+
+    <!-- Join Community Tab -->
+    <div id="join" class="tab-content active">
+      <div style="background: rgba(255,255,255,0.08); border: 2px solid rgba(255,215,0,0.3); border-radius: 12px; padding: 25px; backdrop-filter: blur(10px);">
+        <h2 style="color: #ffd700; margin-bottom: 20px; font-family: 'Fredoka', sans-serif;">Join Our Community 🎅</h2>
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" id="joinName" placeholder="Enter your name">
+        </div>
+        <div class="form-group">
+          <label>Your Solana Address</label>
+          <input type="text" id="joinAddress" placeholder="e.g., 3ZJrAwCkJFqw8S21QaLfVUyAu8A9nBeKNw2UGt1W9sAm">
+        </div>
+        <button class="btn-primary" onclick="joinCommunity()">✨ Join Community</button>
+      </div>
+    </div>
+
+    <!-- Send Gift Tab -->
+    <div id="gift" class="tab-content">
+      <div style="background: rgba(255,255,255,0.08); border: 2px solid rgba(255,215,0,0.3); border-radius: 12px; padding: 25px; backdrop-filter: blur(10px);">
+        <h2 style="color: #ffd700; margin-bottom: 20px; font-family: 'Fredoka', sans-serif;">Send a Gift 🎁</h2>
+        <div class="form-group">
+          <label>Your Name</label>
+          <input type="text" id="giftName" placeholder="Your name">
+        </div>
+        <div class="form-group">
+          <label>Amount (SOL)</label>
+          <input type="number" id="giftAmount" placeholder="0.1" min="0.01" step="0.01">
+        </div>
+        <button class="btn-primary" onclick="selectRandomRecipient()">🎲 Select Random Recipient</button>
+        <div id="recipientDisplay" style="margin-top: 20px;"></div>
+      </div>
+    </div>
+
+    <!-- Leaderboard Tab -->
+    <div id="leaderboard" class="tab-content">
+      <div class="stats" id="stats"></div>
+      <div class="leaderboard" id="leaderboardList"></div>
+    </div>
+
+    <!-- Gift Feed Tab -->
+    <div id="feed" class="tab-content">
+      <div class="gift-feed" id="giftFeed"></div>
+    </div>
+  </div>
+
+  <!-- Donate Modal -->
+  <div id="donateModal" class="modal">
+    <div class="modal-content">
+      <h2>Support Santa 🎅</h2>
+      <p>Help keep the Christmas spirit alive! Send SOL to the creator's wallet:</p>
+      <div class="wallet-display" id="walletDisplay"></div>
+      <button class="copy-btn" onclick="copyToClipboard()">📋 Copy Address</button>
+      <p style="color: #cbd5e1; font-size: 14px; margin-top: 20px;">Then send SOL from your Phantom wallet</p>
+      <button class="close-modal" onclick="closeDonateModal()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://dciojaucxwtbgsycjfyx.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjaW9qYXVjd3d0YmdzeWNqZnl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MDE5NTUsImV4cCI6MjEwNjI3Nzk1NX0.AIXPcE9L_zb8ST_PBZ-D7dNoVOnSivPtKCBuhv9QVpw';
+    const CREATOR_WALLET = '3ZJrAwCkJFqw8S21QaLfVUyAu8A9nBeKNw2UGt1W9sAm';
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let selectedRecipient = null;
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      createSnowflakes();
+      updateCountdown();
+      setInterval(updateCountdown, 1000);
+      loadLeaderboard();
+      loadGiftFeed();
+      document.getElementById('walletDisplay').textContent = CREATOR_WALLET;
+    });
+
+    // Snowflakes
+    function createSnowflakes() {
+      const snowfall = document.getElementById('snowfall');
+      for (let i = 0; i < 50; i++) {
+        const snowflake = document.createElement('div');
+        snowflake.className = 'snowflake';
+        snowflake.textContent = '❄';
+        snowflake.style.left = Math.random() * 100 + '%';
+        snowflake.style.animationDuration = (Math.random() * 5 + 10) + 's';
+        snowflake.style.animationDelay = Math.random() * 2 + 's';
+        snowfall.appendChild(snowflake);
+      }
+    }
+
+    // Menu
+    function toggleMenu() {
+      const menu = document.getElementById('menuDropdown');
+      menu.classList.toggle('active');
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.top-nav')) {
+        document.getElementById('menuDropdown').classList.remove('active');
+      }
+    });
+
+    // Countdown
+    function updateCountdown() {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const christmas = new Date(currentYear, 11, 25);
+      if (now > christmas) christmas.setFullYear(currentYear + 1);
+
+      const diff = christmas - now;
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / 1000 / 60) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      const countdownHTML = `
+        <div class="countdown-item"><div class="countdown-number">${days}</div><div class="countdown-label">Days</div></div>
+        <div class="countdown-item"><div class="countdown-number">${hours}</div><div class="countdown-label">Hours</div></div>
+        <div class="countdown-item"><div class="countdown-number">${minutes}</div><div class="countdown-label">Minutes</div></div>
+        <div class="countdown-item"><div class="countdown-number">${seconds}</div><div class="countdown-label">Seconds</div></div>
+      `;
+      document.getElementById('countdown').innerHTML = countdownHTML;
+    }
+
+    // Tabs
+    function switchTab(event, tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabName).classList.add('active');
+      event.target.classList.add('active');
+      document.getElementById('menuDropdown').classList.remove('active');
+    }
+
+    // Join Community
+    async function joinCommunity() {
+      const name = document.getElementById('joinName').value.trim();
+      const address = document.getElementById('joinAddress').value.trim();
+
+      if (!name || !address) {
+        alert('Please fill in all fields');
+        return;
+      }
+
+      if (address.length !== 44) {
+        alert('Invalid Solana address format');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .insert([{ name, address }])
+          .select();
+
+        if (error) throw error;
+        alert('✨ Welcome to the community!');
+        document.getElementById('joinName').value = '';
+        document.getElementById('joinAddress').value = '';
+        loadLeaderboard();
+      } catch (error) {
+        alert('Error: ' + (error.message.includes('duplicate') ? 'This address is already registered' : error.message));
+      }
+    }
+
+    // Select Random Recipient
+    async function selectRandomRecipient() {
+      const giftName = document.getElementById('giftName').value.trim();
+      const giftAmount = parseFloat(document.getElementById('giftAmount').value);
+
+      if (!giftName || !giftAmount) {
+        alert('Please fill in all fields');
+        return;
+      }
+
+      try {
+        const { data: users, error } = await supabase.from('users').select('*');
+        if (error) throw error;
+        if (users.length === 0) {
+          alert('No users in community yet');
+          return;
+        }
+
+        selectedRecipient = users[Math.floor(Math.random() * users.length)];
+        document.getElementById('recipientDisplay').innerHTML = `
+          <div style="background: rgba(255,215,0,0.1); border: 2px solid #ffd700; border-radius: 12px; padding: 20px; text-align: center;">
+            <h3 style="color: #ffd700; margin-bottom: 15px;">🎁 Lucky Winner! 🎁</h3>
+            <p style="color: #e8f5e9; margin-bottom: 10px;"><strong>${selectedRecipient.name}</strong></p>
+            <p style="color: #cbd5e1; margin-bottom: 15px; font-size: 12px;">Send <strong>${giftAmount} SOL</strong></p>
+            <div style="background: rgba(255,215,0,0.15); border: 1px solid #ffd700; border-radius: 8px; padding: 12px; margin-bottom: 15px; word-break: break-all; font-family: monospace; font-size: 11px; color: #ffd700;">
+              ${selectedRecipient.address}
+            </div>
+            <button class="copy-btn" onclick="copyRecipientAddress()">📋 Copy Address</button>
+            <button class="btn-primary" style="width: auto; padding: 10px 25px; margin-top: 10px;" onclick="confirmGift('${giftName}', ${giftAmount}, '${selectedRecipient.address}')">✓ Confirmed Gift Sent</button>
+          </div>
+        `;
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    function copyRecipientAddress() {
+      navigator.clipboard.writeText(selectedRecipient.address);
+      alert('Address copied!');
+    }
+
+    async function confirmGift(fromName, amount, toAddress) {
+      try {
+        const { error } = await supabase.from('gifts').insert([{
+          from_address: fromName,
+          to_address: toAddress,
+          amount: amount
+        }]);
+
+        if (error) throw error;
+
+        await supabase
+          .from('users')
+          .update({ total_gifted: selectedRecipient.total_gifted + amount })
+          .eq('address', toAddress);
+
+        alert('🎉 Gift recorded!');
+        document.getElementById('recipientDisplay').innerHTML = '';
+        loadLeaderboard();
+        loadGiftFeed();
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    // Donate Modal
+    function openDonateModal() {
+      document.getElementById('donateModal').classList.add('active');
+    }
+
+    function closeDonateModal() {
+      document.getElementById('donateModal').classList.remove('active');
+    }
+
+    function copyToClipboard() {
+      navigator.clipboard.writeText(CREATOR_WALLET);
+      alert('Wallet address copied! Paste it in your Phantom wallet to send SOL.');
+    }
+
+    // Leaderboard
+    async function loadLeaderboard() {
+      try {
+        const { data: users, error: usersError } = await supabase
+          .from('users')
+          .select('*')
+          .order('total_gifted', { ascending: false })
+          .limit(10);
+
+        if (usersError) throw usersError;
+
+        const { data: gifts, error: giftsError } = await supabase.from('gifts').select('*');
+        if (giftsError) throw giftsError;
+
+        const totalSOL = gifts.reduce((sum, gift) => sum + gift.amount, 0);
+        const uniqueGifters = new Set(gifts.map(g => g.from_address)).size;
+        const avgGift = gifts.length > 0 ? (totalSOL / gifts.length).toFixed(2) : '0.00';
+
+        document.getElementById('stats').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-number">${totalSOL.toFixed(2)}</div>
+            <div class="stat-label">Total SOL</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${gifts.length}</div>
+            <div class="stat-label">Gifts Sent</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${uniqueGifters}</div>
+            <div class="stat-label">Gifters</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-number">${avgGift}</div>
+            <div class="stat-label">Avg Gift</div>
+          </div>
+        `;
+
+        const leaderboardHTML = users.map((user, idx) => `
+          <div class="leaderboard-item">
+            <div class="rank">${idx + 1}</div>
+            <div class="leaderboard-info">
+              <div class="leaderboard-name">${user.name}</div>
+            </div>
+            <div class="leaderboard-amount">${user.total_gifted.toFixed(2)} SOL</div>
+          </div>
+        `).join('');
+
+        document.getElementById('leaderboardList').innerHTML = leaderboardHTML || '<p style="color: #cbd5e1; text-align: center; padding: 20px;">No gifters yet...</p>';
+      } catch (error) {
+        console.error('Error loading leaderboard:', error);
+      }
+    }
+
+    // Gift Feed
+    async function loadGiftFeed() {
+      try {
+        const { data: gifts, error } = await supabase
+          .from('gifts')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+
+        const feedHTML = gifts.map(gift => {
+          const time = new Date(gift.created_at).toLocaleTimeString();
+          return `
+            <div class="gift-item">
+              <strong>${gift.from_address}</strong> sent <strong>${gift.amount} SOL</strong> 🎁
+              <div class="gift-time">${time}</div>
+            </div>
+          `;
+        }).join('');
+
+        document.getElementById('giftFeed').innerHTML = feedHTML || '<p style="color: #cbd5e1; text-align: center; padding: 20px;">No gifts yet...</p>';
+      } catch (error) {
+        console.error('Error loading gift feed:', error);
+      }
+    }
+
+    // Close modal on background click
+    document.addEventListener('click', (e) => {
+      const modal = document.getElementById('donateModal');
+      if (e.target === modal) closeDonateModal();
+    });
+  </script>
+</body>
+</html>
