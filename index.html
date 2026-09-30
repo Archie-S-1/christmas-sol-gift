@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Christmas SOL Gift</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Comfortaa:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Comfortaa', cursive;
+      background: linear-gradient(135deg, #1a472a 0%, #2d5a3d 50%, #1a3a2e 100%);
+      min-height: 100vh;
+      color: #fff;
+      overflow-x: hidden;
+    }
+
+    .background-image {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(180deg, #dc3545 0%, #1a472a 100%);
+      z-index: 0;
+    }
+
+    .snowfall {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 5;
+    }
+
+    .snowflake {
+      position: absolute;
+      color: #fff;
+      font-size: 20px;
+      opacity: 0.8;
+      animation: drift 15s linear infinite;
+      text-shadow: 0 0 5px rgba(255,255,255,0.8);
+    }
+
+    @keyframes drift {
+      0% {
+        transform: translateY(-100px) translateX(0) rotate(0deg);
+        opacity: 0;
+      }
+      10% { opacity: 0.8; }
+      90% { opacity: 0.8; }
+      100% {
+        transform: translateY(100vh) translateX(100px) rotate(360deg);
+        opacity: 0;
+      }
+    }
+
+    .top-nav {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 100;
+      display: flex;
+      gap: 10px;
+    }
+
+    .nav-btn {
+      background: rgba(220, 53, 69, 0.9);
+      border: none;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-family: 'Comfortaa', cursive;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .nav-btn:hover {
+      background: rgba(220, 53, 69, 1);
+      transform: scale(1.05);
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      position: relative;
+      z-index: 10;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 3em;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .countdown {
+      text-align: center;
+      font-size: 1.2em;
+      margin-bottom: 30px;
+      color: #ffd700;
+    }
+
+    .form-section {
+      background: rgba(26, 71, 42, 0.9);
+      border: 2px solid #ffd700;
+      border-radius: 15px;
+      padding: 30px;
+      margin-bottom: 30px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ffd700;
+      border-radius: 8px;
+      font-family: 'Comfortaa', cursive;
+      background: rgba(255,255,255,0.1);
+      color: white;
+    }
+
+    input::placeholder {
+      color: rgba(255,255,255,0.6);
+    }
+
+    button {
+      background: #dc3545;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Comfortaa', cursive;
+      font-weight: 600;
+      font-size: 1em;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      background: #c82333;
+      transform: scale(1.05);
+    }
+
+    .tab-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      background: rgba(255,215,0,0.2);
+      border: 2px solid #ffd700;
+      color: white;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: 'Comfortaa', cursive;
+      font-weight: 600;
+    }
+
+    .tab-btn.active {
+      background: rgba(220, 53, 69, 0.9);
+      border-color: #dc3545;
+    }
+
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      background: rgba(26, 71, 42, 0.95);
+      border: 3px solid #ffd700;
+      border-radius: 15px;
+      padding: 30px;
+      max-width: 500px;
+      width: 90%;
+    }
+
+    .modal-header {
+      font-size: 1.8em;
+      margin-bottom: 20px;
+      color: #ffd700;
+    }
+
+    .close-modal {
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #ffd700;
+    }
+
+    .close-modal:hover {
+      color: white;
+    }
+
+    .leaderboard {
+      background: rgba(26, 71, 42, 0.9);
+      border: 2px solid #ffd700;
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+
+    .leaderboard h3 {
+      color: #ffd700;
+      margin-bottom: 15px;
+      font-size: 1.5em;
+    }
+
+    .leaderboard-item {
+      padding: 15px;
+      border-bottom: 1px solid rgba(255,215,0,0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .leaderboard-item:last-child {
+      border-bottom: none;
+    }
+
+    .leaderboard-name {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+    }
+
+    .twitter-link {
+      color: #1da1f2;
+      text-decoration: none;
+      margin-left: 5px;
+    }
+
+    .twitter-link:hover {
+      text-decoration: underline;
+    }
+
+    .leaderboard-amount {
+      color: #ffd700;
+      font-weight: 600;
+      font-size: 1.1em;
+    }
+
+    .gift-feed {
+      background: rgba(26, 71, 42, 0.9);
+      border: 2px solid #ffd700;
+      border-radius: 15px;
+      padding: 20px;
+    }
+
+    .gift-feed h3 {
+      color: #ffd700;
+      margin-bottom: 15px;
+      font-size: 1.5em;
+    }
+
+    .gift-item {
+      padding: 15px;
+      border-bottom: 1px solid rgba(255,215,0,0.3);
+      background: rgba(255,215,0,0.05);
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .gift-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .gift-text {
+      margin-bottom: 5px;
+    }
+
+    .gift-time {
+      font-size: 0.9em;
+      color: rgba(255,255,255,0.7);
+    }
+
+    .profile-section {
+      background: rgba(220, 53, 69, 0.2);
+      border: 2px solid #ffd700;
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 30px;
+      display: none;
+    }
+
+    .profile-section.active {
+      display: block;
+    }
+
+    .profile-info {
+      margin-bottom: 20px;
+    }
+
+    .profile-item {
+      margin-bottom: 10px;
+      font-size: 1.1em;
+    }
+
+    .profile-label {
+      color: #ffd700;
+      font-weight: 600;
+    }
+
+    .error-message {
+      background: rgba(220, 53, 69, 0.3);
+      border: 1px solid #dc3545;
+      color: #ff6b6b;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+    }
+
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 2em;
+      }
+
+      .container {
+        padding: 20px 15px;
+      }
+
+      .form-section {
+        padding: 20px;
+      }
+
+      .leaderboard-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .leaderboard-amount {
+        margin-top: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="background-image"></div>
+  <div class="snowfall" id="snowfall"></div>
+
+  <div class="top-nav">
+    <button class="nav-btn" id="profileBtn" onclick="showProfile()">My Profile</button>
+    <button class="nav-btn" id="logoutBtn" onclick="logout()" style="display:none;">Logout</button>
+  </div>
+
+  <div class="container">
+    <h1>🎄 Christmas SOL Gift 🎁</h1>
+    <div class="countdown" id="countdown"></div>
+
+    <!-- Profile Section -->
+    <div class="profile-section" id="profileSection">
+      <h2 style="color: #ffd700; margin-bottom: 20px;">Your Profile</h2>
+      <div class="profile-info">
+        <div class="profile-item">
+          <span class="profile-label">Name:</span> <span id="profileName"></span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Email:</span> <span id="profileEmail"></span>
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Total Gifted:</span> <span id="profileGifted"></span> SOL
+        </div>
+        <div class="profile-item">
+          <span class="profile-label">Twitter:</span> <span id="profileTwitter">Not set</span>
+        </div>
+      </div>
+      <button onclick="showEditProfile()">Edit Profile</button>
+    </div>
+
+    <!-- Auth Forms -->
+    <div class="form-section" id="authForm">
+      <h2 style="color: #ffd700; margin-bottom: 20px;">Join the Community</h2>
+      
+      <div class="tab-buttons">
+        <button class="tab-btn active" onclick="switchTab('signup')">Sign Up</button>
+        <button class="tab-btn" onclick="switchTab('login')">Login</button>
+      </div>
+
+      <div id="errorMessage" class="error-message"></div>
+
+      <!-- Sign Up Tab -->
+      <div id="signupTab">
+        <div class="form-group">
+          <label for="name">Your Name:</label>
+          <input type="text" id="name" placeholder="Enter your name">
+        </div>
+        <div class="form-group">
+          <label for="email">Email:</label>
+          <input type="email" id="email" placeholder="your@email.com">
+        </div>
+        <div class="form-group">
+          <label for="address">Solana Wallet Address:</label>
+          <input type="text" id="address" placeholder="Your Solana address (44 characters)">
+        </div>
+        <button onclick="joinCommunity()">Join Community</button>
+      </div>
+
+      <!-- Login Tab -->
+      <div id="loginTab" style="display:none;">
+        <div class="form-group">
+          <label for="loginEmail">Email:</label>
+          <input type="email" id="loginEmail" placeholder="your@email.com">
+        </div>
+        <button onclick="loginWithEmail()">Login</button>
+      </div>
+    </div>
+
+    <!-- Gift Section -->
+    <div class="form-section" id="giftForm" style="display:none;">
+      <h2 style="color: #ffd700; margin-bottom: 20px;">Send a Gift 🎁</h2>
+      <div class="form-group">
+        <label for="giftAmount">Amount (SOL):</label>
+        <input type="number" id="giftAmount" placeholder="0.1" step="0.01" min="0">
+      </div>
+      <button onclick="selectRandomRecipient()">Find Random Recipient</button>
+      <div id="recipientInfo" style="margin-top: 20px; display:none;">
+        <p style="color: #ffd700; margin-bottom: 10px;">Selected Recipient:</p>
+        <p id="recipientName" style="font-size: 1.2em; margin-bottom: 10px;"></p>
+        <button onclick="sendGift()">Send Gift</button>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="leaderboard">
+      <h3>🏆 Top Givers</h3>
+      <div id="leaderboardList">
+        <p style="text-align: center; color: rgba(255,255,255,0.6);">Loading...</p>
+      </div>
+    </div>
+
+    <!-- Gift Feed -->
+    <div class="gift-feed">
+      <h3>🎀 Recent Gifts</h3>
+      <div id="giftFeed">
+        <p style="text-align: center; color: rgba(255,255,255,0.6);">Loading...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Profile Modal -->
+  <div class="modal" id="editModal">
+    <div class="modal-content">
+      <span class="close-modal" onclick="closeModal()">&times;</span>
+      <div class="modal-header">Edit Your Profile</div>
+      <div class="form-group">
+        <label for="editName">Name:</label>
+        <input type="text" id="editName" placeholder="Your name">
+      </div>
+      <div class="form-group">
+        <label for="editTwitter">Twitter Handle:</label>
+        <input type="text" id="editTwitter" placeholder="@yourhandle (optional)">
+      </div>
+      <button onclick="saveProfile()">Save Changes</button>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://christmas-sol-gift.onrender.com';
+
+    let currentUser = null;
+    let selectedRecipient = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      createSnowflakes();
+      updateCountdown();
+      setInterval(updateCountdown, 1000);
+      loadLeaderboard();
+      loadGiftFeed();
+      checkLogin();
+    });
+
+    function createSnowflakes() {
+      const snowfall = document.getElementById('snowfall');
+      for (let i = 0; i < 50; i++) {
+        const snowflake = document.createElement('div');
+        snowflake.className = 'snowflake';
+        snowflake.textContent = '❄️';
+        snowflake.style.left = Math.random() * 100 + '%';
+        snowflake.style.animationDuration = (10 + Math.random() * 10) + 's';
+        snowflake.style.animationDelay = Math.random() * 5 + 's';
+        snowfall.appendChild(snowflake);
+      }
+    }
+
+    function updateCountdown() {
+      const now = new Date();
+      const christmas = new Date(now.getFullYear(), 11, 25);
+      if (now > christmas) christmas.setFullYear(now.getFullYear() + 1);
+      const diff = christmas - now;
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      document.getElementById('countdown').textContent = `${days}d ${hours}h ${minutes}m ${seconds}s until Christmas! ⏰`;
+    }
+
+    function showError(message) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = message;
+      errorDiv.classList.add('show');
+      setTimeout(() => errorDiv.classList.remove('show'), 5000);
+    }
+
+    function clearError() {
+      document.getElementById('errorMessage').classList.remove('show');
+    }
+
+    function switchTab(tab) {
+      document.getElementById('signupTab').style.display = tab === 'signup' ? 'block' : 'none';
+      document.getElementById('loginTab').style.display = tab === 'login' ? 'block' : 'none';
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+    }
+
+    async function checkLogin() {
+      const userEmail = localStorage.getItem('userEmail');
+      if (userEmail) {
+        try {
+          const response = await fetch(`${API_URL}/api/users/email/${encodeURIComponent(userEmail)}`);
+          if (response.ok) {
+            currentUser = await response.json();
+            showUserView();
+          }
+        } catch (error) {
+          console.error('Error checking login:', error);
+        }
+      }
+    }
+
+    async function joinCommunity() {
+      clearError();
+      const name = document.getElementById('name').value;
+      const email = document.getElementById('email').value;
+      const address = document.getElementById('address').value;
+
+      if (!name || !email || !address) {
+        showError('Please fill in all fields');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, address })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          currentUser = { name, email, address, twitter: null, total_gifted: 0 };
+          localStorage.setItem('userEmail', email);
+          showUserView();
+          loadLeaderboard();
+        } else {
+          showError(data.error);
+        }
+      } catch (error) {
+        showError('Error: ' + error.message);
+      }
+    }
+
+    async function loginWithEmail() {
+      clearError();
+      const loginEmail = document.getElementById('loginEmail').value;
+
+      if (!loginEmail) {
+        showError('Please enter your email');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: loginEmail })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+          currentUser = data.user;
+          localStorage.setItem('userEmail', loginEmail);
+          showUserView();
+          loadLeaderboard();
+        } else {
+          showError(data.error);
+        }
+      } catch (error) {
+        showError('Error: ' + error.message);
+      }
+    }
+
+    function showUserView() {
+      document.getElementById('authForm').style.display = 'none';
+      document.getElementById('giftForm').style.display = 'block';
+      document.getElementById('profileSection').classList.add('active');
+      document.getElementById('profileBtn').style.display = 'none';
+      document.getElementById('logoutBtn').style.display = 'block';
+      updateProfileDisplay();
+    }
+
+    function updateProfileDisplay() {
+      if (currentUser) {
+        document.getElementById('profileName').textContent = currentUser.name;
+        document.getElementById('profileEmail').textContent = currentUser.email;
+        document.getElementById('profileGifted').textContent = currentUser.total_gifted;
+        document.getElementById('profileTwitter').textContent = currentUser.twitter ? `@${currentUser.twitter}` : 'Not set';
+      }
+    }
+
+    function showProfile() {
+      if (currentUser) {
+        document.getElementById('profileSection').classList.add('active');
+      } else {
+        showError('Please login first');
+      }
+    }
+
+    function showEditProfile() {
+      if (currentUser) {
+        document.getElementById('editName').value = currentUser.name;
+        document.getElementById('editTwitter').value = currentUser.twitter || '';
+        document.getElementById('editModal').classList.add('active');
+      }
+    }
+
+    function closeModal() {
+      document.getElementById('editModal').classList.remove('active');
+    }
+
+    async function saveProfile() {
+      const name = document.getElementById('editName').value;
+      const twitter = document.getElementById('editTwitter').value;
+
+      if (!name) {
+        alert('Name is required');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/users/${currentUser.address}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, twitter: twitter || null })
+        });
+
+        if (response.ok) {
+          currentUser.name = name;
+          currentUser.twitter = twitter || null;
+          updateProfileDisplay();
+          closeModal();
+          loadLeaderboard();
+          alert('Profile updated!');
+        }
+      } catch (error) {
+        alert('Error: ' + error.message);
+      }
+    }
+
+    async function selectRandomRecipient() {
+      try {
+        const response = await fetch(`${API_URL}/api/random-user`);
+        if (response.ok) {
+          selectedRecipient = await response.json();
+          document.getElementById('recipientInfo').style.display = 'block';
+          document.getElementById('recipientName').textContent = `${selectedRecipient.name}${selectedRecipient.twitter ? ' (@' + selectedRecipient.twitter + ')' : ''}`;
+        } else {
+          showError('Could not find a recipient. Please try again.');
+        }
+      } catch (error) {
+        showError('Error: ' + error.message);
+      }
+    }
+
+    async function sendGift() {
+      if (!selectedRecipient) {
+        showError('Please select a recipient first');
+        return;
+      }
+
+      const amount = parseFloat(document.getElementById('giftAmount').value);
+      if (amount <= 0) {
+        showError('Please enter a valid amount');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_URL}/api/gifts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from_address: currentUser.address, to_address: selectedRecipient.address, amount })
+        });
+
+        if (response.ok) {
+          alert('Gift sent! 🎉');
+          document.getElementById('giftAmount').value = '';
+          document.getElementById('recipientInfo').style.display = 'none';
+          selectedRecipient = null;
+          loadLeaderboard();
+          loadGiftFeed();
+        } else {
+          const data = await response.json();
+          showError(data.error);
+        }
+      } catch (error) {
+        showError('Error: ' + error.message);
+      }
+    }
+
+    async function loadLeaderboard() {
+      try {
+        const response = await fetch(`${API_URL}/api/users`);
+        if (response.ok) {
+          const users = await response.json();
+          const list = document.getElementById('leaderboardList');
+          if (users.length === 0) {
+            list.innerHTML = '<p style="text-align: center; color: rgba(255,255,255,0.6);">No one joined yet. Be first! 🎁</p>';
+            return;
+          }
+          list.innerHTML = '';
+          users.forEach((user, index) => {
+            const item = document.createElement('div');
+            item.className = 'leaderboard-item';
+            item.innerHTML = `<div class="leaderboard-name"><span>${index + 1}. ${user.name}</span>${user.twitter ? `<a href="https://twitter.com/${user.twitter}" target="_blank" class="twitter-link">@${user.twitter}</a>` : ''}</div><div class="leaderboard-amount">${user.total_gifted} SOL</div>`;
+            list.appendChild(item);
+          });
+        }
+      } catch (error) {
+        console.error('Error loading leaderboard:', error);
+      }
+    }
+
+    async function loadGiftFeed() {
+      try {
+        const response = await fetch(`${API_URL}/api/gifts`);
+        if (response.ok) {
+          const gifts = await response.json();
+          const feed = document.getElementById('giftFeed');
+          if (gifts.length === 0) {
+            feed.innerHTML = '<p style="text-align: center; color: rgba(255,255,255,0.6);">No gifts yet. Be the first! 🎁</p>';
+            return;
+          }
+          feed.innerHTML = '';
+          gifts.forEach(gift => {
+            const date = new Date(gift.created_at);
+            const item = document.createElement('div');
+            item.className = 'gift-item';
+            item.innerHTML = `<div class="gift-text"><strong>${gift.from_name || 'Anonymous'}</strong> sent <strong>${gift.amount} SOL</strong></div><div class="gift-time">${date.toLocaleString()}</div>`;
+            feed.appendChild(item);
+          });
+        }
+      } catch (error) {
+        console.error('Error loading gift feed:', error);
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem('userEmail');
+      currentUser = null;
+      document.getElementById('authForm').style.display = 'block';
+      document.getElementById('giftForm').style.display = 'none';
+      document.getElementById('profileSection').classList.remove('active');
+      document.getElementById('profileBtn').style.display = 'block';
+      document.getElementById('logoutBtn').style.display = 'none';
+      document.getElementById('name').value = '';
+      document.getElementById('email').value = '';
+      document.getElementById('loginEmail').value = '';
+      document.getElementById('address').value = '';
+      document.getElementById('giftAmount').value = '';
+      document.getElementById('recipientInfo').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
