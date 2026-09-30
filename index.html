@@ -1120,6 +1120,39 @@
       return message;
     }
 
+    // Full unsigned transaction = [1 signature slot] + [64 empty bytes] + message.
+    // Phantom fills in the signature when the user approves.
+    function buildUnsignedTransaction(message) {
+      const tx = new Uint8Array(1 + 64 + message.length);
+      tx[0] = 1;
+      tx.set(message, 65);
+      return tx;
+    }
+
+    function isUserRejection(e) {
+      const text = (e && e.message) || '';
+      return (e && e.code === 4001) || /reject|cancel|denied/i.test(text);
+    }
+
+    // Ask Phantom to sign and send. Newer Phantom wants the whole transaction;
+    // older versions wanted just the message, so try that if the first way fails.
+    async function phantomSignAndSend(provider, message) {
+      try {
+        return await provider.request({
+          method: 'signAndSendTransaction',
+          params: { message: base58Encode(buildUnsignedTransaction(message)) }
+        });
+      } catch (e) {
+        if (isUserRejection(e)) throw e;
+        const text = (e && e.message) || '';
+        if (!/buffer|deserializ|invalid|decode|parse|version/i.test(text)) throw e;
+        return await provider.request({
+          method: 'signAndSendTransaction',
+          params: { message: base58Encode(message) }
+        });
+      }
+    }
+
     function shortAddress(address) {
       return address ? `${address.slice(0, 4)}…${address.slice(-4)}` : '';
     }
@@ -1334,13 +1367,10 @@
         setBusyText(buttonId, 'Approve in Phantom 👻');
         let result;
         try {
-          result = await provider.request({
-            method: 'signAndSendTransaction',
-            params: { message: base58Encode(message) }
-          });
+          result = await phantomSignAndSend(provider, message);
         } catch (e) {
           const text = (e && e.message) || '';
-          if ((e && e.code === 4001) || /reject|cancel|denied/i.test(text)) {
+          if (isUserRejection(e)) {
             showError('Gift cancelled - no SOL was sent.');
           } else if (config.network === 'devnet' && /blockhash|simulat|network|cluster/i.test(text)) {
             showError('Phantom could not send it. Make sure Phantom is set to Devnet: Settings → Developer Settings → Testnet Mode → Solana Devnet.');
