@@ -1,0 +1,8 @@
+{
+  "name": "christmas-sol-gift-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Christmas SOL gifting platform",
+  "engines": {
+    "node": "18"
+  }
+}
