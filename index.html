@@ -412,7 +412,64 @@
       font-weight: bold;
     }
 
-.leaderboard-name a, .profile-value a {
+    .network-badge {
+      background: rgba(20, 241, 149, 0.12);
+      border: 1px solid rgba(20, 241, 149, 0.4);
+      color: #14f195;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 0.8em;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    .wallet-button {
+      background: rgba(153, 69, 255, 0.15);
+      border: 1px solid rgba(153, 69, 255, 0.5);
+      color: #d6b8ff;
+      width: auto;
+      white-space: nowrap;
+      padding: 8px 14px;
+    }
+
+    .wallet-button:hover {
+      background: rgba(153, 69, 255, 0.3);
+      border-color: #9945ff;
+      box-shadow: none;
+    }
+
+    .devnet-note {
+      display: none;
+      background: rgba(20, 241, 149, 0.08);
+      border: 1px dashed rgba(20, 241, 149, 0.4);
+      color: #b8f5dc;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 0.85em;
+      margin-bottom: 15px;
+    }
+
+    .devnet-note a, .success-message a, .error-message a {
+      color: inherit;
+      font-weight: bold;
+    }
+
+    .gift-item a.tx-link {
+      color: #4da3ff;
+      font-weight: normal;
+      font-size: 0.85em;
+      margin-left: 8px;
+      text-decoration: none;
+    }
+
+    @media (max-width: 600px) {
+      .navbar-title { font-size: 1.1em; }
+      .navbar-right { gap: 8px; }
+      .wallet-label { display: none; }
+      .network-badge { font-size: 0.7em; padding: 3px 6px; }
+    }
+
+    .leaderboard-name a, .profile-value a {
       color: #4da3ff;
       font-weight: normal;
       font-size: 0.9em;
@@ -625,6 +682,8 @@
   <div class="navbar">
     <div class="navbar-title">🎄 Christmas SOL Gift</div>
     <div class="navbar-right">
+      <span class="network-badge" id="networkBadge" style="display: none;">🧪 DEVNET</span>
+      <button class="profile-button wallet-button" id="walletBtn" onclick="connectWallet(true)">👻 <span class="wallet-label" id="walletLabel">Connect Phantom</span></button>
       <button class="profile-button" id="profileBtn" onclick="toggleProfileDropdown()">Profile</button>
       <div class="dropdown-menu" id="profileDropdown">
         <div id="dropdownContent"></div>
@@ -695,9 +754,14 @@
 
       <div class="card">
         <h2>Send a Gift 🎁</h2>
+        <div class="devnet-note" id="devnetNote">
+          🧪 <strong>Test mode:</strong> gifts use free <strong>devnet</strong> SOL, not real money.
+          Set Phantom to Devnet (Settings → Developer Settings → Testnet Mode), then grab free test SOL at
+          <a href="https://faucet.solana.com" target="_blank" rel="noopener noreferrer">faucet.solana.com</a>.
+        </div>
         <div class="form-group">
           <label for="giftAmount">SOL Amount</label>
-          <input type="number" id="giftAmount" placeholder="0.1" step="0.01" min="0">
+          <input type="number" id="giftAmount" placeholder="0.1" step="0.001" min="0.001">
         </div>
         <div id="recipientInfo" style="display: none; margin-bottom: 15px;">
           <div style="background: rgba(255, 215, 0, 0.1); padding: 15px; border-radius: 4px;">
@@ -775,9 +839,9 @@
       </div>
       <div class="form-group">
         <label for="donateAmount">SOL Amount</label>
-        <input type="number" id="donateAmount" placeholder="0.1" step="0.01" min="0">
+        <input type="number" id="donateAmount" placeholder="0.1" step="0.001" min="0.001">
       </div>
-      <button onclick="sendDonation()">Send Donation 🎁</button>
+      <button id="donateBtn" onclick="sendDonation()">Send Donation 🎁</button>
     </div>
   </div>
 
@@ -902,6 +966,7 @@
           currentUser = data;
           document.getElementById('authCard').classList.remove('show');
           updateProfileDropdown();
+          finishPendingGift();
         } else if (res.status === 401) {
           clearToken();
           clearAuth();
@@ -928,17 +993,395 @@
       }, 5000);
     }
 
-    function showSuccess(message) {
+    let successTimer = null;
+    function showSuccess(message, link) {
       const successDiv = document.getElementById('successMessage');
       successDiv.textContent = message;
+      if (link) {
+        const a = document.createElement('a');
+        a.href = link.href;
+        a.textContent = ' ' + link.text;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        successDiv.appendChild(a);
+      }
       successDiv.style.display = 'block';
-      setTimeout(() => {
+      clearTimeout(successTimer);
+      successTimer = setTimeout(() => {
         successDiv.style.display = 'none';
-      }, 5000);
+      }, link ? 12000 : 5000);
+    }
+
+    // Error with a clickable link (text is plain, link is built safely)
+    function showErrorWithLink(message, linkText, href) {
+      const errorDiv = document.getElementById('errorMessage');
+      errorDiv.textContent = message + ' ';
+      const a = document.createElement('a');
+      a.href = href;
+      a.textContent = linkText;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      errorDiv.appendChild(a);
+      errorDiv.style.display = 'block';
+      setTimeout(() => { errorDiv.style.display = 'none'; }, 12000);
     }
 
     function validateAddress(address) {
-      return address && address.length === 44 && /^[1-9A-HJ-NP-Za-km-z]{44}$/.test(address);
+      try {
+        return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address) && base58Decode(address).length === 32;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    // ---------------------------------------------------------------------
+    // Solana + Phantom
+    // ---------------------------------------------------------------------
+    const LAMPORTS_PER_SOL = 1000000000;
+    const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    let solanaConfig = null;
+    let connectedWallet = null;
+
+    function base58Encode(bytes) {
+      let zeros = 0;
+      while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
+      const digits = [];
+      for (const byte of bytes) {
+        let carry = byte;
+        for (let j = 0; j < digits.length; j++) {
+          carry += digits[j] * 256;
+          digits[j] = carry % 58;
+          carry = Math.floor(carry / 58);
+        }
+        while (carry > 0) {
+          digits.push(carry % 58);
+          carry = Math.floor(carry / 58);
+        }
+      }
+      let out = '1'.repeat(zeros);
+      for (let i = digits.length - 1; i >= 0; i--) out += BASE58_ALPHABET[digits[i]];
+      return out;
+    }
+
+    function base58Decode(text) {
+      const bytes = [];
+      for (const ch of text) {
+        const value = BASE58_ALPHABET.indexOf(ch);
+        if (value < 0) throw new Error('Invalid base58 character');
+        let carry = value;
+        for (let j = 0; j < bytes.length; j++) {
+          carry += bytes[j] * 58;
+          bytes[j] = carry & 0xff;
+          carry >>= 8;
+        }
+        while (carry > 0) {
+          bytes.push(carry & 0xff);
+          carry >>= 8;
+        }
+      }
+      let zeros = 0;
+      while (zeros < text.length && text[zeros] === '1') zeros++;
+      const out = new Uint8Array(zeros + bytes.length);
+      for (let i = 0; i < bytes.length; i++) out[out.length - 1 - i] = bytes[i];
+      return out;
+    }
+
+    function pubkeyBytes(address) {
+      const bytes = base58Decode(address);
+      if (bytes.length !== 32) throw new Error('Invalid Solana address: ' + address);
+      return bytes;
+    }
+
+    // Builds the message for a simple "send SOL from A to B" Solana transaction
+    function buildTransferMessage(fromAddress, toAddress, lamports, recentBlockhash) {
+      const data = new Uint8Array(12);
+      const view = new DataView(data.buffer);
+      view.setUint32(0, 2, true);               // System Program instruction #2 = Transfer
+      view.setBigUint64(4, BigInt(lamports), true);
+
+      const parts = [
+        [1, 0, 1],                               // header: 1 signer, 0 read-only signers, 1 read-only account
+        [3],                                     // 3 accounts
+        pubkeyBytes(fromAddress),                // sender (signer, writable)
+        pubkeyBytes(toAddress),                  // recipient (writable)
+        new Uint8Array(32),                      // System Program (11111111111111111111111111111111)
+        pubkeyBytes(recentBlockhash),            // recent blockhash
+        [1],                                     // 1 instruction
+        [2, 2, 0, 1, 12],                        // program = account #2, accounts [0, 1], 12 bytes of data
+        data
+      ];
+      const length = parts.reduce((sum, part) => sum + part.length, 0);
+      const message = new Uint8Array(length);
+      let offset = 0;
+      for (const part of parts) {
+        message.set(part, offset);
+        offset += part.length;
+      }
+      return message;
+    }
+
+    function shortAddress(address) {
+      return address ? `${address.slice(0, 4)}…${address.slice(-4)}` : '';
+    }
+
+    function explorerUrl(signature) {
+      const cluster = solanaConfig && solanaConfig.network === 'devnet' ? '?cluster=devnet' : '';
+      return `https://solscan.io/tx/${signature}${cluster}`;
+    }
+
+    async function loadSolanaConfig() {
+      if (solanaConfig) return solanaConfig;
+      const res = await fetch(`${API_URL}/api/config`);
+      if (!res.ok) throw new Error('config');
+      solanaConfig = await res.json();
+      const isDevnet = solanaConfig.network === 'devnet';
+      document.getElementById('networkBadge').style.display = isDevnet ? 'inline-block' : 'none';
+      document.getElementById('devnetNote').style.display = isDevnet ? 'block' : 'none';
+      return solanaConfig;
+    }
+
+    async function rpc(method, params) {
+      const config = await loadSolanaConfig();
+      const res = await fetch(config.rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error.message || 'Solana error');
+      return data.result;
+    }
+
+    function getPhantom() {
+      if (window.phantom && window.phantom.solana && window.phantom.solana.isPhantom) return window.phantom.solana;
+      if (window.solana && window.solana.isPhantom) return window.solana;
+      return null;
+    }
+
+    function isMobile() {
+      return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    }
+
+    function showNoPhantom() {
+      if (isMobile()) {
+        const url = encodeURIComponent(window.location.href);
+        const ref = encodeURIComponent(window.location.origin);
+        showErrorWithLink('On your phone, open this site inside the Phantom app to send gifts.', 'Open in Phantom 👻',
+          `https://phantom.app/ul/browse/${url}?ref=${ref}`);
+      } else {
+        showErrorWithLink('You need the Phantom wallet browser extension to send gifts.', 'Get Phantom 👻', 'https://phantom.app/download');
+      }
+    }
+
+    function updateWalletButton() {
+      document.getElementById('walletLabel').textContent = connectedWallet ? shortAddress(connectedWallet) : 'Connect Phantom';
+    }
+
+    async function connectWallet(fromButton) {
+      const provider = getPhantom();
+      if (!provider) {
+        showNoPhantom();
+        return null;
+      }
+      try {
+        const response = await provider.connect();
+        connectedWallet = response.publicKey.toString();
+        updateWalletButton();
+        if (fromButton && currentUser && connectedWallet !== currentUser.address) {
+          showError(`Phantom is on ${shortAddress(connectedWallet)}, but your account uses ${shortAddress(currentUser.address)}. Switch accounts in Phantom to send gifts.`);
+        } else if (fromButton) {
+          showSuccess('Phantom connected 👻');
+        }
+        return connectedWallet;
+      } catch (e) {
+        if (fromButton) showError('Phantom connection was cancelled');
+        return null;
+      }
+    }
+
+    function setBusyText(id, text) {
+      const btn = document.getElementById(id);
+      if (btn) btn.textContent = text;
+    }
+
+    // Remembers a sent-but-not-yet-recorded gift so it is never lost
+    const PENDING_KEY = 'pendingGift';
+    function savePending(gift) {
+      try { localStorage.setItem(PENDING_KEY, JSON.stringify(gift)); } catch (e) {}
+    }
+    function loadPending() {
+      try { return JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch (e) { return null; }
+    }
+    function clearPending() {
+      try { localStorage.removeItem(PENDING_KEY); } catch (e) {}
+    }
+
+    async function waitForConfirmation(signature, timeoutMs = 90000) {
+      const started = Date.now();
+      while (Date.now() - started < timeoutMs) {
+        try {
+          const result = await rpc('getSignatureStatuses', [[signature], { searchTransactionHistory: false }]);
+          const status = result && result.value && result.value[0];
+          if (status && status.err) throw new Error('failed-on-chain');
+          if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) return true;
+        } catch (e) {
+          if (e.message === 'failed-on-chain') throw e;
+        }
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+      return false;
+    }
+
+    // Tell our server about the gift so it can check it on Solana and add it to the leaderboard
+    async function recordGift(signature, toAddress) {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 4000));
+        let res, data;
+        try {
+          ({ res, data } = await authFetch('/api/gifts', {
+            method: 'POST',
+            body: JSON.stringify({ to_address: toAddress, signature })
+          }));
+        } catch (e) {
+          continue; // network hiccup or server waking up - try again
+        }
+        if (res.ok) {
+          clearPending();
+          return { ok: true, data };
+        }
+        if (res.status === 401) return { ok: false, error: null };
+        if (!data.retry && res.status !== 503) {
+          clearPending();
+          return { ok: false, error: data.error || 'Could not record the gift' };
+        }
+      }
+      return { ok: false, error: 'Your SOL was sent, but we could not record it yet. It will be added automatically next time you visit.' };
+    }
+
+    // If a gift was sent but not recorded (e.g. the page was closed), finish it now
+    async function finishPendingGift() {
+      const pending = loadPending();
+      if (!pending || !currentUser) return;
+      if (Date.now() - (pending.createdAt || 0) > 2 * 60 * 60 * 1000) {
+        clearPending();
+        return;
+      }
+      const result = await recordGift(pending.signature, pending.to_address);
+      if (result.ok) {
+        showSuccess('Your last gift has been added to the leaderboard 🎉', { href: explorerUrl(pending.signature), text: 'View on Solscan ↗' });
+        loadUser();
+        loadStats();
+        loadLeaderboard();
+        loadGiftFeed();
+      }
+    }
+
+    // Send SOL with Phantom, wait for Solana to confirm it, then record it.
+    async function sendSolGift(toAddress, amount, buttonId) {
+      if (!currentUser) {
+        showError('Please login first');
+        return false;
+      }
+      setBusy(buttonId, true, 'Preparing... ⏳');
+      try {
+        let config;
+        try {
+          config = await loadSolanaConfig(); // also wakes the server up before any SOL moves
+        } catch (e) {
+          showError('The server is waking up. Please try again in 30 seconds.');
+          return false;
+        }
+        if (!(amount >= config.minGift) || amount > config.maxGift) {
+          showError(`Amount must be between ${config.minGift} and ${config.maxGift} SOL`);
+          return false;
+        }
+
+        const provider = getPhantom();
+        if (!provider) {
+          showNoPhantom();
+          return false;
+        }
+        const wallet = await connectWallet(false);
+        if (!wallet) {
+          showError('Please connect Phantom to send a gift');
+          return false;
+        }
+        if (wallet !== currentUser.address) {
+          showError(`Phantom is on ${shortAddress(wallet)}, but your account uses ${shortAddress(currentUser.address)}. Switch accounts in Phantom and try again.`);
+          return false;
+        }
+
+        if (!validateAddress(toAddress)) {
+          showError("This member's wallet address isn't valid, so they can't receive SOL. Please pick another recipient.");
+          return false;
+        }
+
+        const lamports = BigInt(Math.round(amount * LAMPORTS_PER_SOL));
+        const balance = await rpc('getBalance', [wallet, { commitment: 'confirmed' }]);
+        if (BigInt(balance.value) < lamports + 10000n) {
+          const have = (Number(balance.value) / LAMPORTS_PER_SOL).toFixed(4);
+          if (config.network === 'devnet') {
+            showErrorWithLink(`Not enough test SOL (you have ${have}).`, 'Get free devnet SOL ↗', 'https://faucet.solana.com');
+          } else {
+            showError(`Not enough SOL in your wallet (you have ${have} SOL).`);
+          }
+          return false;
+        }
+
+        const latest = await rpc('getLatestBlockhash', [{ commitment: 'confirmed' }]);
+        const message = buildTransferMessage(wallet, toAddress, lamports, latest.value.blockhash);
+
+        setBusyText(buttonId, 'Approve in Phantom 👻');
+        let result;
+        try {
+          result = await provider.request({
+            method: 'signAndSendTransaction',
+            params: { message: base58Encode(message) }
+          });
+        } catch (e) {
+          const text = (e && e.message) || '';
+          if ((e && e.code === 4001) || /reject|cancel|denied/i.test(text)) {
+            showError('Gift cancelled - no SOL was sent.');
+          } else if (config.network === 'devnet' && /blockhash|simulat|network|cluster/i.test(text)) {
+            showError('Phantom could not send it. Make sure Phantom is set to Devnet: Settings → Developer Settings → Testnet Mode → Solana Devnet.');
+          } else {
+            showError('Phantom error: ' + (text || 'the transaction could not be sent'));
+          }
+          return false;
+        }
+
+        const signature = typeof result === 'string' ? result : result.signature;
+        savePending({ signature, to_address: toAddress, amount, createdAt: Date.now() });
+
+        setBusyText(buttonId, 'Confirming on Solana... ⏳');
+        try {
+          await waitForConfirmation(signature);
+        } catch (e) {
+          clearPending();
+          showError('That transaction failed on Solana, so no SOL was sent.');
+          return false;
+        }
+
+        setBusyText(buttonId, 'Recording gift... 🎁');
+        const recorded = await recordGift(signature, toAddress);
+        if (!recorded.ok) {
+          if (recorded.error) showError(recorded.error);
+          return false;
+        }
+
+        showSuccess(`Gift sent! ${Number(recorded.data.amount || amount)} SOL is on its way 🎉`, { href: explorerUrl(signature), text: 'View on Solscan ↗' });
+        loadUser();
+        loadStats();
+        loadLeaderboard();
+        loadGiftFeed();
+        return true;
+      } catch (error) {
+        console.error(error);
+        showError('Something went wrong talking to Solana. Please try again.');
+        return false;
+      } finally {
+        setBusy(buttonId, false);
+      }
     }
 
     let pendingEmail = null;
@@ -1198,29 +1641,12 @@
         return;
       }
 
-      try {
-        const { res, data } = await authFetch('/api/gifts', {
-          method: 'POST',
-          body: JSON.stringify({ to_address: selectedRecipient.address, amount: amount })
-        });
-
-        if (!res.ok) {
-          if (res.status !== 401) showError(data.error || 'Failed to send gift');
-          return;
-        }
-
+      const sent = await sendSolGift(selectedRecipient.address, amount, 'sendGiftBtn');
+      if (sent) {
         document.getElementById('giftAmount').value = '';
         selectedRecipient = null;
         document.getElementById('recipientInfo').style.display = 'none';
         document.getElementById('sendGiftBtn').style.display = 'none';
-        showSuccess('Gift sent! 🎉');
-
-        loadUser();
-        loadStats();
-        loadLeaderboard();
-        loadGiftFeed();
-      } catch (error) {
-        showError('Network error. Please try again.');
       }
     }
 
@@ -1244,26 +1670,10 @@
         return;
       }
 
-      try {
-        const { res, data } = await authFetch('/api/gifts', {
-          method: 'POST',
-          body: JSON.stringify({ to_address: CREATOR_WALLET, amount: amount })
-        });
-
-        if (!res.ok) {
-          if (res.status !== 401) showError(data.error || 'Failed to send donation');
-          return;
-        }
-
+      const sent = await sendSolGift(CREATOR_WALLET, amount, 'donateBtn');
+      if (sent) {
         closeDonateModal();
         showSuccess('Thank you for your donation! 🎄');
-
-        loadUser();
-        loadStats();
-        loadLeaderboard();
-        loadGiftFeed();
-      } catch (error) {
-        showError('Network error. Please try again.');
       }
     }
 
@@ -1340,7 +1750,7 @@
                 <span style="color: #aaa;"> to </span>
                 <span class="gift-to">${toName}</span>
               </div>
-              <div class="gift-time">${timeStr}</div>
+              <div class="gift-time">${timeStr}${/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(gift.signature || '') ? `<a class="tx-link" href="${explorerUrl(gift.signature)}" target="_blank" rel="noopener noreferrer">view on Solscan ↗</a>` : ''}</div>
             </div>
           `;
         }).join('');
@@ -1367,6 +1777,25 @@
     };
 
     // Initial load
+    loadSolanaConfig().catch(() => {});
+    (function watchPhantom() {
+      const provider = getPhantom();
+      if (!provider) return;
+      provider.connect({ onlyIfTrusted: true }).then((r) => {
+        connectedWallet = r.publicKey.toString();
+        updateWalletButton();
+      }).catch(() => {});
+      if (provider.on) {
+        provider.on('accountChanged', (publicKey) => {
+          connectedWallet = publicKey ? publicKey.toString() : null;
+          updateWalletButton();
+        });
+        provider.on('disconnect', () => {
+          connectedWallet = null;
+          updateWalletButton();
+        });
+      }
+    })();
     loadUser();
     loadStats();
     loadLeaderboard();

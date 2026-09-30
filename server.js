@@ -15,6 +15,19 @@ app.use(express.json({ limit: '20kb' }));
 const CREATOR_WALLET = 'C2sMvjiwZJm5vHR7ayDifvPzyuKcpr9isCTCHkwYfuqT';
 
 // ---------------------------------------------------------------------------
+// Solana settings. Starts on DEVNET (free test SOL).
+// To go live with real SOL later, set SOLANA_NETWORK=mainnet in Render.
+// ---------------------------------------------------------------------------
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK === 'mainnet' ? 'mainnet' : 'devnet';
+const DEFAULT_RPC = SOLANA_NETWORK === 'mainnet' ? 'https://api.mainnet-beta.solana.com' : 'https://api.devnet.solana.com';
+const SOLANA_RPC_URL = process.env.SOLANA_RPC_URL || DEFAULT_RPC;       // used by this server
+const PUBLIC_RPC_URL = process.env.PUBLIC_RPC_URL || SOLANA_RPC_URL;    // used by visitors' browsers
+const LAMPORTS_PER_SOL = 1000000000;
+const MIN_GIFT_SOL = 0.001;
+const MAX_GIFT_SOL = 1000;
+const MAX_TX_AGE_SECONDS = 2 * 60 * 60; // gifts must be recorded within 2 hours of sending
+
+// ---------------------------------------------------------------------------
 // Database: Postgres (Neon). Data is stored permanently, so nothing is lost
 // when Render puts the server to sleep.
 // ---------------------------------------------------------------------------
@@ -61,6 +74,12 @@ async function initDb() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
 
+  // Every gift is a real Solana transaction: store its signature and which network it was on.
+  // Older gifts (from before wallet payments) are marked 'legacy' and no longer counted.
+  await pool.query('ALTER TABLE gifts ADD COLUMN IF NOT EXISTS signature TEXT');
+  await pool.query("ALTER TABLE gifts ADD COLUMN IF NOT EXISTS network TEXT DEFAULT 'legacy'");
+  await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS gifts_signature_key ON gifts (signature)');
+
   await pool.query(`CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -70,8 +89,9 @@ async function initDb() {
 
   // The leaderboard ranks people by how much they have GIVEN.
   // Recalculate from the gift history so totals are always correct.
+  // Only gifts on the current network count.
   await pool.query(`UPDATE users u SET total_gifted = COALESCE(
-    (SELECT SUM(g.amount) FROM gifts g WHERE g.from_address = u.address), 0)`);
+    (SELECT SUM(g.amount) FROM gifts g WHERE g.from_address = u.address AND g.network = $1), 0)`, [SOLANA_NETWORK]);
 }
 
 // Queries are written with ? placeholders; these convert them to Postgres $1, $2, ...
@@ -218,6 +238,63 @@ function twitterProblem(rawHandle) {
   if (!handle) return null;
   if (!/^[A-Za-z0-9_]{1,15}$/.test(handle)) return 'Twitter handle can only use letters, numbers and _ (max 15)';
   return nameProblem(handle, { label: 'Twitter handle', min: 1, max: 15 });
+}
+
+// ---------------------------------------------------------------------------
+// Solana: check a gift really happened on-chain before it counts
+// ---------------------------------------------------------------------------
+async function solanaRpc(method, params) {
+  const response = await axios.post(SOLANA_RPC_URL, { jsonrpc: '2.0', id: 1, method, params }, {
+    headers: { 'Content-Type': 'application/json' },
+    timeout: 15000
+  });
+  if (response.data.error) throw new Error(response.data.error.message || 'Solana RPC error');
+  return response.data.result;
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// A real Solana address is base58 text that decodes to exactly 32 bytes
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function isSolanaAddress(text) {
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(text || '')) return false;
+  let value = 0n;
+  for (const ch of text) value = value * 58n + BigInt(BASE58_ALPHABET.indexOf(ch));
+  let zeros = 0;
+  while (zeros < text.length && text[zeros] === '1') zeros++;
+  const byteLength = zeros + (value === 0n ? 0 : Math.ceil(value.toString(16).length / 2));
+  return byteLength === 32;
+}
+
+// Returns { ok: true, lamports } or { ok: false, error, retry }
+async function verifyTransfer(signature, fromAddress, toAddress) {
+  let tx = null;
+  // A freshly confirmed transaction can take a few seconds to become visible
+  for (let attempt = 0; attempt < 8 && !tx; attempt++) {
+    if (attempt > 0) await sleep(1500);
+    tx = await solanaRpc('getTransaction', [signature, {
+      encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0
+    }]);
+  }
+  if (!tx) return { ok: false, retry: true, error: "We couldn't find that transaction on Solana yet. Please try again in a minute." };
+  if (!tx.meta || tx.meta.err) return { ok: false, error: 'That transaction failed on Solana, so no SOL was sent.' };
+  if (tx.blockTime && Date.now() / 1000 - tx.blockTime > MAX_TX_AGE_SECONDS) {
+    return { ok: false, error: 'That transaction is too old to record.' };
+  }
+
+  const instructions = (tx.transaction && tx.transaction.message && tx.transaction.message.instructions) || [];
+  let lamports = 0;
+  for (const ix of instructions) {
+    const parsed = ix.parsed;
+    if (ix.program === 'system' && parsed && (parsed.type === 'transfer' || parsed.type === 'transferWithSeed')) {
+      const info = parsed.info || {};
+      if (info.source === fromAddress && info.destination === toAddress) lamports += Number(info.lamports) || 0;
+    }
+  }
+  if (lamports <= 0) {
+    return { ok: false, error: 'That transaction is not a SOL transfer from your wallet to this recipient.' };
+  }
+  return { ok: true, lamports };
 }
 
 // ---------------------------------------------------------------------------
@@ -389,7 +466,7 @@ app.post('/api/users', async (req, res) => {
     const badName = nameProblem(name);
     if (badName) return res.status(400).json({ error: badName });
 
-    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
+    if (!isSolanaAddress(address)) {
       return res.status(400).json({ error: 'Invalid Solana address' });
     }
 
@@ -610,10 +687,12 @@ app.get('/api/users', async (req, res) => {
 app.get('/api/random-user', async (req, res) => {
   try {
     const exclude = (req.query.exclude || '').toString();
-    const user = await dbGet(
-      'SELECT * FROM users WHERE verified = 1 AND hidden = 0 AND address != ? ORDER BY RANDOM() LIMIT 1',
+    const candidates = await dbAll(
+      'SELECT * FROM users WHERE verified = 1 AND hidden = 0 AND address != ? ORDER BY RANDOM() LIMIT 20',
       [exclude]
     );
+    // Skip anyone whose wallet address can't actually receive SOL
+    const user = candidates.find((u) => isSolanaAddress(u.address));
     if (!user) {
       return res.status(404).json({ error: 'No other verified members yet' });
     }
@@ -624,37 +703,74 @@ app.get('/api/random-user', async (req, res) => {
   }
 });
 
-// Send gift (must be logged in; it is always sent FROM your own wallet)
+// Which Solana network the site is using (the browser asks for this)
+app.get('/api/config', (req, res) => {
+  res.json({
+    network: SOLANA_NETWORK,
+    rpcUrl: PUBLIC_RPC_URL,
+    creatorWallet: CREATOR_WALLET,
+    minGift: MIN_GIFT_SOL,
+    maxGift: MAX_GIFT_SOL
+  });
+});
+
+// Record a gift. The SOL has already been sent with Phantom; we check the
+// transaction on the Solana blockchain before it counts on the leaderboard.
 app.post('/api/gifts', requireAuth, async (req, res) => {
   try {
     const fromAddress = req.user.address;
     const toAddress = (req.body.to_address || '').toString().trim();
-    const amount = Number(req.body.amount);
+    const signature = (req.body.signature || '').toString().trim();
 
-    if (!toAddress || !Number.isFinite(amount)) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!toAddress || !signature) {
+      return res.status(400).json({ error: 'Missing gift details' });
     }
-    if (amount <= 0 || amount > 1000) {
-      return res.status(400).json({ error: 'Amount must be between 0 and 1000 SOL' });
+    if (!/^[1-9A-HJ-NP-Za-km-z]{64,90}$/.test(signature)) {
+      return res.status(400).json({ error: 'Invalid transaction signature' });
     }
     if (fromAddress === toAddress) {
       return res.status(400).json({ error: 'Cannot send gift to yourself!' });
     }
 
+    if (!isSolanaAddress(toAddress)) {
+      return res.status(400).json({ error: 'Invalid recipient address' });
+    }
     const isCreator = toAddress === CREATOR_WALLET;
     if (!isCreator) {
       const recipient = await dbGet('SELECT id FROM users WHERE address = ? AND verified = 1', [toAddress]);
       if (!recipient) return res.status(400).json({ error: 'Recipient is not a community member' });
     }
 
-    if (rateLimited(`gift:${req.user.id}`, 20, 60 * 60 * 1000)) {
+    const existing = await dbGet('SELECT id, from_address FROM gifts WHERE signature = ?', [signature]);
+    if (existing) {
+      if (existing.from_address === fromAddress) return res.json({ success: true, alreadyRecorded: true, message: 'Gift already recorded 🎉' });
+      return res.status(400).json({ error: 'That transaction has already been used' });
+    }
+
+    if (rateLimited(`gift:${req.user.id}`, 30, 60 * 60 * 1000)) {
       return res.status(429).json({ error: 'Slow down! Too many gifts in the last hour.' });
     }
 
-    await dbRun('INSERT INTO gifts (from_address, to_address, amount) VALUES (?, ?, ?)', [fromAddress, toAddress, amount]);
+    let check;
+    try {
+      check = await verifyTransfer(signature, fromAddress, toAddress);
+    } catch (error) {
+      console.error('Solana check failed:', error.message);
+      return res.status(503).json({ error: "Couldn't reach Solana to check the gift. Please try again in a minute.", retry: true });
+    }
+    if (!check.ok) return res.status(check.retry ? 503 : 400).json({ error: check.error, retry: !!check.retry });
+
+    const amount = check.lamports / LAMPORTS_PER_SOL;
+    try {
+      await dbRun('INSERT INTO gifts (from_address, to_address, amount, signature, network) VALUES (?, ?, ?, ?, ?)',
+        [fromAddress, toAddress, amount, signature, SOLANA_NETWORK]);
+    } catch (error) {
+      if (/duplicate key|unique/i.test(error.message)) return res.json({ success: true, alreadyRecorded: true, message: 'Gift already recorded 🎉' });
+      throw error;
+    }
     await dbRun('UPDATE users SET total_gifted = total_gifted + ? WHERE id = ?', [amount, req.user.id]);
 
-    res.json({ success: true, message: 'Gift sent! 🎉' });
+    res.json({ success: true, message: 'Gift sent! 🎉', amount, signature, network: SOLANA_NETWORK });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Server error. Please try again.' });
@@ -665,7 +781,7 @@ app.post('/api/gifts', requireAuth, async (req, res) => {
 app.get('/api/gifts', async (req, res) => {
   try {
     const gifts = await dbAll(
-      `SELECT g.id, g.amount, g.created_at,
+      `SELECT g.id, g.amount, g.created_at, g.signature,
               CASE WHEN u.hidden = 1 THEN NULL ELSE u.name END AS from_name,
               CASE WHEN u.hidden = 1 THEN NULL ELSE u.twitter END AS from_twitter,
               CASE WHEN g.to_address = ? THEN 'the creator 🎅'
@@ -673,9 +789,10 @@ app.get('/api/gifts', async (req, res) => {
        FROM gifts g
        LEFT JOIN users u ON g.from_address = u.address
        LEFT JOIN users r ON g.to_address = r.address
+       WHERE g.network = ?
        ORDER BY g.created_at DESC
        LIMIT 50`,
-      [CREATOR_WALLET]
+      [CREATOR_WALLET, SOLANA_NETWORK]
     );
     res.json(gifts);
   } catch (error) {
@@ -690,7 +807,8 @@ app.get('/api/stats', async (req, res) => {
     const totals = await dbGet(
       `SELECT COALESCE(SUM(amount), 0) AS total_sol, COUNT(*) AS gift_count,
               COUNT(DISTINCT from_address) AS unique_gifters
-       FROM gifts`
+       FROM gifts WHERE network = ?`,
+      [SOLANA_NETWORK]
     );
     const users = await dbGet('SELECT COUNT(*) AS count FROM users WHERE verified = 1 AND hidden = 0');
 
@@ -802,6 +920,7 @@ initDb()
     app.listen(port, () => {
       console.log(`✅ Server running on port ${port}`);
       console.log(`📧 Email sender: ${SENDER_EMAIL} | Brevo key ${process.env.BREVO_API_KEY ? 'set' : 'MISSING'}`);
+      console.log(`🪙 Solana network: ${SOLANA_NETWORK.toUpperCase()} (${SOLANA_RPC_URL})`);
       console.log(`🔐 Admin tools ${process.env.ADMIN_PASSWORD ? 'enabled' : 'disabled (set ADMIN_PASSWORD to enable)'}`);
     });
   })
