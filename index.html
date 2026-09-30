@@ -412,6 +412,73 @@
       font-weight: bold;
     }
 
+    .link-btn {
+      width: auto;
+      padding: 4px 10px;
+      font-size: 0.8em;
+      background: rgba(255, 215, 0, 0.1);
+      border: 1px solid rgba(255, 215, 0, 0.4);
+      color: #ffd700;
+      margin-left: 6px;
+    }
+
+    .link-btn:hover {
+      background: rgba(255, 215, 0, 0.2);
+      box-shadow: none;
+      transform: none;
+    }
+
+    .x-step {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid rgba(255, 215, 0, 0.2);
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+
+    .x-step-title {
+      color: #ffd700;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .x-tweet-preview {
+      white-space: pre-wrap;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 0.95em;
+      margin-bottom: 10px;
+      word-break: break-word;
+    }
+
+    .x-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .x-buttons a, .x-buttons button {
+      flex: 1;
+      text-align: center;
+      text-decoration: none;
+      padding: 10px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 0.95em;
+    }
+
+    .x-post-btn {
+      background: #000;
+      color: #fff;
+      border: 1px solid #555;
+    }
+
+    .x-copy-btn {
+      background: transparent !important;
+      border: 1px solid #ffd700 !important;
+      color: #ffd700 !important;
+    }
+
     .network-badge {
       background: rgba(20, 241, 149, 0.12);
       border: 1px solid rgba(20, 241, 149, 0.4);
@@ -819,11 +886,34 @@
         <label for="editName">Name</label>
         <input type="text" id="editName" placeholder="Your name" maxlength="24">
       </div>
-      <div class="form-group">
-        <label for="editTwitter">Twitter Handle</label>
-        <input type="text" id="editTwitter" placeholder="@yourhandle (optional)" maxlength="16">
-      </div>
       <button onclick="saveProfile()">Save Changes</button>
+    </div>
+  </div>
+
+  <!-- Link X Modal -->
+  <div id="xModal" class="modal">
+    <div class="modal-content">
+      <span class="close-modal" onclick="closeXModal()">&times;</span>
+      <h3>Link your X account 🐦</h3>
+      <p style="color: #aaa; margin-bottom: 15px;">Prove it's really you by posting a quick tweet. Your handle then shows on the leaderboard with a ✓.</p>
+
+      <div class="x-step">
+        <div class="x-step-title">1. Post this tweet</div>
+        <div class="x-tweet-preview" id="xTweetText">Loading...</div>
+        <div class="x-buttons">
+          <a class="x-post-btn" id="xPostLink" href="#" target="_blank" rel="noopener noreferrer">Post on X ↗</a>
+          <button class="x-copy-btn" onclick="copyXText()">Copy text</button>
+        </div>
+      </div>
+
+      <div class="x-step">
+        <div class="x-step-title">2. Paste the link to your tweet</div>
+        <div class="form-group">
+          <input type="url" id="xTweetUrl" placeholder="https://x.com/yourname/status/..." onkeydown="if(event.key==='Enter') verifyX()">
+        </div>
+        <button id="xVerifyBtn" onclick="verifyX()">Verify ✓</button>
+        <p style="color: #aaa; font-size: 0.8em; margin-top: 10px;">Your X account needs to be public. To get the link: open your tweet → Share → Copy link.</p>
+      </div>
     </div>
   </div>
 
@@ -867,7 +957,7 @@
     function twitterLink(handle) {
       const clean = String(handle || '').replace(/^@/, '');
       if (!/^[A-Za-z0-9_]{1,15}$/.test(clean)) return '';
-      return `<a href="https://x.com/${clean}" target="_blank" rel="noopener noreferrer">@${clean}</a>`;
+      return `<a href="https://x.com/${clean}" target="_blank" rel="noopener noreferrer" title="Verified by tweet">@${clean} ✓</a>`;
     }
 
     // Login token (kept in this browser only)
@@ -938,8 +1028,10 @@
           <div class="profile-value">${Number(currentUser.total_gifted || 0).toFixed(2)} SOL</div>
         </div>
         <div class="profile-info">
-          <div class="profile-label">Twitter</div>
-          <div class="profile-value">${twitterLink(currentUser.twitter) || 'Not set'}</div>
+          <div class="profile-label">X account</div>
+          <div class="profile-value">${currentUser.twitter
+            ? `${twitterLink(currentUser.twitter)} <button class="link-btn" onclick="unlinkX()">Unlink</button>`
+            : `<button class="link-btn" onclick="openXModal()">🐦 Link X account</button>`}</div>
         </div>
         <div class="profile-actions">
           <button onclick="openEditProfileModal()">Edit Profile</button>
@@ -1595,8 +1687,87 @@
 
     function openEditProfileModal() {
       document.getElementById('editName').value = currentUser.name;
-      document.getElementById('editTwitter').value = currentUser.twitter || '';
       document.getElementById('editProfileModal').classList.add('active');
+    }
+
+    async function openXModal() {
+      closeProfileDropdown();
+      document.getElementById('xTweetText').textContent = 'Loading...';
+      document.getElementById('xTweetUrl').value = '';
+      document.getElementById('xModal').classList.add('active');
+      try {
+        const { res, data } = await authFetch('/api/me/x/start', { method: 'POST' });
+        if (!res.ok) {
+          closeXModal();
+          if (res.status !== 401) showError(data.error || 'Could not start linking');
+          return;
+        }
+        document.getElementById('xTweetText').textContent = data.text;
+        document.getElementById('xPostLink').href = data.intentUrl;
+      } catch (e) {
+        closeXModal();
+        showError('Network error (the server may be waking up - try again in 30s)');
+      }
+    }
+
+    function closeXModal() {
+      document.getElementById('xModal').classList.remove('active');
+    }
+
+    async function copyXText() {
+      const text = document.getElementById('xTweetText').textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        showSuccess('Tweet text copied 📋');
+      } catch (e) {
+        showError('Could not copy - select the text and copy it manually');
+      }
+    }
+
+    async function verifyX() {
+      const url = document.getElementById('xTweetUrl').value.trim();
+      if (!url) {
+        showError('Paste the link to your tweet first');
+        return;
+      }
+      setBusy('xVerifyBtn', true, 'Checking your tweet... 🔍');
+      try {
+        const { res, data } = await authFetch('/api/me/x/verify', {
+          method: 'POST',
+          body: JSON.stringify({ tweet_url: url })
+        });
+        if (!res.ok) {
+          if (res.status !== 401) showError(data.error || 'Could not verify');
+          return;
+        }
+        currentUser = data.user;
+        closeXModal();
+        updateProfileDropdown();
+        loadLeaderboard();
+        loadGiftFeed();
+        showSuccess(data.message || 'X account linked! ✅');
+      } catch (e) {
+        showError('Network error. Please try again.');
+      } finally {
+        setBusy('xVerifyBtn', false);
+      }
+    }
+
+    async function unlinkX() {
+      if (!confirm('Unlink your X account from your profile?')) return;
+      try {
+        const { res, data } = await authFetch('/api/me/x', { method: 'DELETE' });
+        if (!res.ok) {
+          if (res.status !== 401) showError(data.error || 'Could not unlink');
+          return;
+        }
+        currentUser = data.user;
+        updateProfileDropdown();
+        loadLeaderboard();
+        showSuccess('X account unlinked');
+      } catch (e) {
+        showError('Network error. Please try again.');
+      }
     }
 
     function closeEditProfileModal() {
@@ -1605,7 +1776,6 @@
 
     async function saveProfile() {
       const name = document.getElementById('editName').value.trim();
-      const twitter = document.getElementById('editTwitter').value.trim();
 
       if (!name) {
         showError('Name cannot be empty');
@@ -1615,7 +1785,7 @@
       try {
         const { res, data } = await authFetch('/api/me', {
           method: 'PUT',
-          body: JSON.stringify({ name, twitter: twitter || null })
+          body: JSON.stringify({ name })
         });
 
         if (!res.ok) {
@@ -1623,7 +1793,7 @@
           return;
         }
 
-        currentUser = data.user || Object.assign(currentUser, { name, twitter: twitter.replace(/^@/, '') || null });
+        currentUser = data.user || Object.assign(currentUser, { name });
         closeEditProfileModal();
         loadLeaderboard();
         loadGiftFeed();
@@ -1800,6 +1970,9 @@
       }
       if (event.target === donateModal) {
         closeDonateModal();
+      }
+      if (event.target === document.getElementById('xModal')) {
+        closeXModal();
       }
       if (event.target.id !== 'profileBtn' && !profileDropdown.contains(event.target)) {
         closeProfileDropdown();

@@ -27,6 +27,12 @@ const MIN_GIFT_SOL = 0.001;
 const MAX_GIFT_SOL = 1000;
 const MAX_TX_AGE_SECONDS = 2 * 60 * 60; // gifts must be recorded within 2 hours of sending
 
+// X (Twitter) linking: members prove they own their X account by tweeting a code.
+// Set PROJECT_X_HANDLE in Render to your project's X username (without @) so the tweet tags you.
+const PROJECT_X_HANDLE = (process.env.PROJECT_X_HANDLE || '').replace(/^@/, '').trim();
+const SITE_URL = process.env.SITE_URL || 'christmas-sol-gift.vercel.app';
+const OEMBED_URL = process.env.OEMBED_URL || 'https://publish.twitter.com/oembed';
+
 // ---------------------------------------------------------------------------
 // Database: Postgres (Neon). Data is stored permanently, so nothing is lost
 // when Render puts the server to sleep.
@@ -65,6 +71,10 @@ async function initDb() {
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS hidden INTEGER DEFAULT 0');
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS twitter_verified INTEGER DEFAULT 0');
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS twitter_code TEXT');
+  // X handles must now be proven with a tweet; remove any that were only typed in
+  await pool.query('UPDATE users SET twitter = NULL WHERE COALESCE(twitter_verified, 0) = 0 AND twitter IS NOT NULL');
 
   await pool.query(`CREATE TABLE IF NOT EXISTS gifts (
     id SERIAL PRIMARY KEY,
@@ -302,7 +312,7 @@ async function verifyTransfer(signature, fromAddress, toAddress) {
 // ---------------------------------------------------------------------------
 function publicUser(user) {
   if (!user) return user;
-  const { verification_code, code_expires_at, code_attempts, hidden, token_hash, user_id, expires_at, ...safe } = user;
+  const { verification_code, code_expires_at, code_attempts, hidden, token_hash, user_id, expires_at, twitter_code, ...safe } = user;
   return safe;
 }
 
@@ -626,15 +636,115 @@ app.put('/api/me', requireAuth, async (req, res) => {
     const badName = nameProblem(name);
     if (badName) return res.status(400).json({ error: badName });
 
-    const twitterRaw = (req.body.twitter || '').toString().trim();
-    const badTwitter = twitterProblem(twitterRaw);
-    if (badTwitter) return res.status(400).json({ error: badTwitter });
-    const twitter = twitterRaw.replace(/^@/, '') || null;
-
-    await dbRun('UPDATE users SET name = ?, twitter = ? WHERE id = ?', [name, twitter, req.user.id]);
+    // (X handles are linked separately by tweeting a code - see /api/me/x/...)
+    await dbRun('UPDATE users SET name = ? WHERE id = ?', [name, req.user.id]);
     const updated = await dbGet('SELECT * FROM users WHERE id = ?', [req.user.id]);
 
     res.json({ success: true, message: 'Profile updated!', user: publicUser(updated) });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Server error. Please try again.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Link X account by tweeting a code
+// ---------------------------------------------------------------------------
+function xTweetText(code) {
+  const tag = PROJECT_X_HANDLE ? `@${PROJECT_X_HANDLE}` : '$secretshiba';
+  return `Verifying my account for ${tag} 🎅🐕\nWho's your Secret Shiba? 👀\n${SITE_URL}\n\ncode: ${code}`;
+}
+
+function htmlToText(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&nbsp;/g, ' ')
+    .replace(/&mdash;/g, '-');
+}
+
+// Step 1: get a personal code and the tweet to post
+app.post('/api/me/x/start', requireAuth, async (req, res) => {
+  try {
+    let code = req.user.twitter_code;
+    if (!code) {
+      const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      code = 'SHIBA-' + Array.from(crypto.randomBytes(5), (b) => alphabet[b % alphabet.length]).join('');
+      await dbRun('UPDATE users SET twitter_code = ? WHERE id = ?', [code, req.user.id]);
+    }
+    const text = xTweetText(code);
+    res.json({ code, text, intentUrl: `https://x.com/intent/tweet?text=${encodeURIComponent(text)}` });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Server error. Please try again.' });
+  }
+});
+
+// Step 2: user pastes the link to their tweet; we check it with X's public embed service
+app.post('/api/me/x/verify', requireAuth, async (req, res) => {
+  try {
+    if (!req.user.twitter_code) return res.status(400).json({ error: 'Start linking first to get your code.' });
+    if (rateLimited(`xverify:${req.user.id}`, 15, 60 * 60 * 1000)) {
+      return res.status(429).json({ error: 'Too many tries. Please wait a bit and try again.' });
+    }
+
+    const link = (req.body.tweet_url || '').toString().trim();
+    const match = link.match(/^https?:\/\/(?:www\.|mobile\.)?(?:twitter|x)\.com\/([A-Za-z0-9_]{1,15})\/status(?:es)?\/(\d{5,25})/i);
+    if (!match) {
+      return res.status(400).json({ error: 'Paste the link to your tweet, e.g. https://x.com/yourname/status/123...' });
+    }
+
+    let embed;
+    try {
+      const response = await axios.get(OEMBED_URL, {
+        params: { url: `https://twitter.com/${match[1]}/status/${match[2]}`, omit_script: 'true', dnt: 'true' },
+        timeout: 15000,
+        validateStatus: () => true
+      });
+      if (response.status === 404 || response.status === 403) {
+        return res.status(400).json({ error: "We couldn't find that tweet. Make sure your account is public and the link is right, then try again in a minute." });
+      }
+      if (response.status !== 200 || !response.data || !response.data.author_url) {
+        console.error('X embed error:', response.status, JSON.stringify(response.data).slice(0, 300));
+        return res.status(503).json({ error: "X didn't respond properly. Please try again in a minute." });
+      }
+      embed = response.data;
+    } catch (error) {
+      console.error('X embed request failed:', error.message);
+      return res.status(503).json({ error: "Couldn't reach X right now. Please try again in a minute." });
+    }
+
+    const authorMatch = String(embed.author_url).match(/(?:twitter|x)\.com\/([A-Za-z0-9_]{1,15})\/?$/i);
+    if (!authorMatch) return res.status(503).json({ error: "Couldn't read who posted that tweet. Please try again." });
+    const handle = authorMatch[1];
+
+    const text = htmlToText(embed.html).toUpperCase();
+    if (!text.includes(req.user.twitter_code.toUpperCase())) {
+      return res.status(400).json({ error: `That tweet doesn't contain your code (${req.user.twitter_code}). Please post the tweet exactly as shown.` });
+    }
+
+    const taken = await dbGet(
+      'SELECT id FROM users WHERE LOWER(twitter) = LOWER(?) AND twitter_verified = 1 AND id != ?',
+      [handle, req.user.id]
+    );
+    if (taken) return res.status(400).json({ error: `@${handle} is already linked to another member.` });
+
+    await dbRun('UPDATE users SET twitter = ?, twitter_verified = 1, twitter_code = NULL WHERE id = ?', [handle, req.user.id]);
+    const updated = await dbGet('SELECT * FROM users WHERE id = ?', [req.user.id]);
+    res.json({ success: true, message: `@${handle} linked! ✅`, user: publicUser(updated) });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Server error. Please try again.' });
+  }
+});
+
+// Unlink X account
+app.delete('/api/me/x', requireAuth, async (req, res) => {
+  try {
+    await dbRun('UPDATE users SET twitter = NULL, twitter_verified = 0, twitter_code = NULL WHERE id = ?', [req.user.id]);
+    const updated = await dbGet('SELECT * FROM users WHERE id = ?', [req.user.id]);
+    res.json({ success: true, user: publicUser(updated) });
   } catch (error) {
     console.error('Error:', error);
     res.status(500).json({ error: 'Server error. Please try again.' });
@@ -921,6 +1031,7 @@ initDb()
       console.log(`✅ Server running on port ${port}`);
       console.log(`📧 Email sender: ${SENDER_EMAIL} | Brevo key ${process.env.BREVO_API_KEY ? 'set' : 'MISSING'}`);
       console.log(`🪙 Solana network: ${SOLANA_NETWORK.toUpperCase()} (${SOLANA_RPC_URL})`);
+      console.log(`🐦 X linking: tweets tag ${PROJECT_X_HANDLE ? '@' + PROJECT_X_HANDLE : '(PROJECT_X_HANDLE not set - using $secretshiba)'}`);
       console.log(`🔐 Admin tools ${process.env.ADMIN_PASSWORD ? 'enabled' : 'disabled (set ADMIN_PASSWORD to enable)'}`);
     });
   })
