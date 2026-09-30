@@ -429,6 +429,36 @@
       font-weight: bold;
     }
 
+    .pool-status {
+      display: none;
+      background: rgba(255, 215, 0, 0.07);
+      border: 1px solid rgba(255, 215, 0, 0.3);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-size: 0.88em;
+      margin-bottom: 15px;
+      color: #f5e6a8;
+    }
+
+    .pool-status.in-pool {
+      background: rgba(74, 222, 128, 0.08);
+      border-color: rgba(74, 222, 128, 0.4);
+      color: #b8f5cf;
+    }
+
+    .pool-status ul {
+      list-style: none;
+      margin-top: 6px;
+    }
+
+    .pool-status li {
+      margin: 4px 0;
+    }
+
+    .pool-status .link-btn {
+      margin-left: 8px;
+    }
+
     .link-btn {
       width: auto;
       padding: 4px 10px;
@@ -843,6 +873,7 @@
           Set Phantom to Devnet (Settings → Developer Settings → Testnet Mode), then grab free test SOL at
           <a href="https://faucet.solana.com" target="_blank" rel="noopener noreferrer">faucet.solana.com</a>.
         </div>
+        <div class="pool-status" id="poolStatus"></div>
         <div class="form-group">
           <label for="giftAmount">SOL Amount</label>
           <input type="number" id="giftAmount" placeholder="0.1" step="0.001" min="0.001">
@@ -1075,6 +1106,7 @@
           currentUser = data;
           document.getElementById('authCard').classList.remove('show');
           updateProfileDropdown();
+          loadPoolStatus();
           finishPendingGift();
         } else if (res.status === 401) {
           clearToken();
@@ -1607,6 +1639,7 @@
       document.getElementById('loginEmail').value = '';
       document.getElementById('authCard').classList.remove('show');
       updateProfileDropdown();
+      loadPoolStatus();
       showSuccess(message);
       pendingEmail = null;
       loadStats();
@@ -1681,6 +1714,8 @@
 
     function clearAuth() {
       currentUser = null;
+      const pool = document.getElementById('poolStatus');
+      if (pool) pool.style.display = 'none';
       selectedRecipient = null;
       document.getElementById('authCard').classList.add('show');
       updateProfileDropdown();
@@ -1705,6 +1740,52 @@
     function openEditProfileModal() {
       document.getElementById('editName').value = currentUser.name;
       document.getElementById('editProfileModal').classList.add('active');
+    }
+
+    // Shows whether you can be picked as someone's Secret Shiba, and what's missing
+    async function loadPoolStatus() {
+      const box = document.getElementById('poolStatus');
+      if (!currentUser) {
+        box.style.display = 'none';
+        return;
+      }
+      try {
+        const { res, data } = await authFetch('/api/me/pool');
+        if (!res.ok || !data.checks) {
+          box.style.display = 'none';
+          return;
+        }
+        box.innerHTML = '';
+        box.classList.toggle('in-pool', !!data.eligible);
+        const title = document.createElement('div');
+        title.textContent = data.eligible
+          ? "🎯 You're in the Secret Shiba pool - someone could pick you! 👀"
+          : "🎯 To be picked as someone's Secret Shiba:";
+        box.appendChild(title);
+        if (!data.eligible) {
+          const list = document.createElement('ul');
+          for (const check of data.checks) {
+            const item = document.createElement('li');
+            let text = `${check.ok ? '✅' : '⬜'} ${check.label}`;
+            if (check.key === 'token' && typeof check.balance === 'number') {
+              text += ` (you have ${check.balance.toLocaleString('en-US')})`;
+            }
+            item.textContent = text;
+            if (check.key === 'x' && !check.ok) {
+              const btn = document.createElement('button');
+              btn.className = 'link-btn';
+              btn.textContent = '🐦 Link X';
+              btn.onclick = openXModal;
+              item.appendChild(btn);
+            }
+            list.appendChild(item);
+          }
+          box.appendChild(list);
+        }
+        box.style.display = 'block';
+      } catch (e) {
+        box.style.display = 'none';
+      }
     }
 
     async function openXModal() {
@@ -1760,6 +1841,7 @@
         currentUser = data.user;
         closeXModal();
         updateProfileDropdown();
+        loadPoolStatus();
         loadLeaderboard();
         loadGiftFeed();
         showSuccess(data.message || 'X account linked! ✅');
@@ -1780,6 +1862,7 @@
         }
         currentUser = data.user;
         updateProfileDropdown();
+        loadPoolStatus();
         loadLeaderboard();
         showSuccess('X account unlinked');
       } catch (e) {

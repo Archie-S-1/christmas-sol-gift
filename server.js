@@ -34,6 +34,19 @@ const SITE_URL = process.env.SITE_URL || 'christmas-sol-gift.vercel.app';
 const OEMBED_URL = process.env.OEMBED_URL || 'https://publish.twitter.com/oembed';
 
 // ---------------------------------------------------------------------------
+// Who can be picked as someone's Secret Shiba (anti-farming rules)
+// REQUIRE_X_FOR_POOL: members must have a verified X account (on unless set to "false")
+// TOKEN_MINT + MIN_TOKEN_BALANCE: members must hold at least this many $secretshiba
+//   (off until TOKEN_MINT is set in Render - add it on launch day)
+// ---------------------------------------------------------------------------
+const REQUIRE_X_FOR_POOL = process.env.REQUIRE_X_FOR_POOL !== 'false';
+const TOKEN_MINT = (process.env.TOKEN_MINT || '').trim();
+const MIN_TOKEN_BALANCE = Number(process.env.MIN_TOKEN_BALANCE || 0);
+const TOKEN_SYMBOL = process.env.TOKEN_SYMBOL || '$secretshiba';
+const TOKEN_BALANCE_CACHE_MS = 5 * 60 * 1000;
+const tokenBalanceCache = new Map();
+
+// ---------------------------------------------------------------------------
 // Database: Postgres (Neon). Data is stored permanently, so nothing is lost
 // when Render puts the server to sleep.
 // ---------------------------------------------------------------------------
@@ -794,18 +807,78 @@ app.get('/api/users', async (req, res) => {
   }
 });
 
-// Get random user
+// How many of our token a wallet holds (cached for 5 minutes). Returns a number, or null if unknown.
+async function tokenBalance(address) {
+  const cached = tokenBalanceCache.get(address);
+  if (cached && Date.now() - cached.at < TOKEN_BALANCE_CACHE_MS) return cached.amount;
+  try {
+    const result = await solanaRpc('getTokenAccountsByOwner', [address, { mint: TOKEN_MINT }, { encoding: 'jsonParsed', commitment: 'confirmed' }]);
+    let amount = 0;
+    for (const account of (result && result.value) || []) {
+      const info = account.account && account.account.data && account.account.data.parsed && account.account.data.parsed.info;
+      const ui = info && info.tokenAmount && Number(info.tokenAmount.uiAmountString || info.tokenAmount.uiAmount);
+      if (Number.isFinite(ui)) amount += ui;
+    }
+    tokenBalanceCache.set(address, { amount, at: Date.now() });
+    return amount;
+  } catch (error) {
+    console.error('Token balance check failed:', error.message);
+    return null;
+  }
+}
+
+// Can this member be picked as a Secret Shiba? Returns { eligible, checks: [...] }
+async function poolStatus(user, { skipTokenCheck = false } = {}) {
+  const checks = [];
+  checks.push({ key: 'wallet', label: 'Valid Solana wallet', ok: isSolanaAddress(user.address) });
+  if (REQUIRE_X_FOR_POOL) {
+    checks.push({ key: 'x', label: 'Verified X account linked', ok: !!(user.twitter && user.twitter_verified) });
+  }
+  if (TOKEN_MINT && !skipTokenCheck) {
+    const balance = await tokenBalance(user.address);
+    checks.push({
+      key: 'token',
+      label: `Hold at least ${MIN_TOKEN_BALANCE.toLocaleString('en-US')} ${TOKEN_SYMBOL}`,
+      ok: balance !== null && balance >= MIN_TOKEN_BALANCE && balance > 0,
+      balance
+    });
+  }
+  return { eligible: checks.every((c) => c.ok), checks };
+}
+
+// My own pool status (shown on the site)
+app.get('/api/me/pool', requireAuth, async (req, res) => {
+  try {
+    if (req.user.hidden) return res.json({ eligible: false, checks: [] });
+    res.json(await poolStatus(req.user));
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Server error. Please try again.' });
+  }
+});
+
+// Get a random member who is eligible to be someone's Secret Shiba
 app.get('/api/random-user', async (req, res) => {
   try {
     const exclude = (req.query.exclude || '').toString();
+    const conditions = ['verified = 1', 'hidden = 0', 'address != ?'];
+    if (REQUIRE_X_FOR_POOL) conditions.push('twitter_verified = 1', 'twitter IS NOT NULL');
     const candidates = await dbAll(
-      'SELECT * FROM users WHERE verified = 1 AND hidden = 0 AND address != ? ORDER BY RANDOM() LIMIT 20',
+      `SELECT * FROM users WHERE ${conditions.join(' AND ')} ORDER BY RANDOM() LIMIT 25`,
       [exclude]
     );
-    // Skip anyone whose wallet address can't actually receive SOL
-    const user = candidates.find((u) => isSolanaAddress(u.address));
+
+    let user = null;
+    for (const candidate of candidates) {
+      if (!isSolanaAddress(candidate.address)) continue; // can't receive SOL
+      const status = await poolStatus(candidate);
+      if (status.eligible) {
+        user = candidate;
+        break;
+      }
+    }
     if (!user) {
-      return res.status(404).json({ error: 'No other verified members yet' });
+      return res.status(404).json({ error: 'No eligible Secret Shibas yet - check back soon! 🐕' });
     }
     res.json(listUser(user));
   } catch (error) {
@@ -820,6 +893,12 @@ app.get('/api/config', (req, res) => {
     network: SOLANA_NETWORK,
     rpcUrl: PUBLIC_RPC_URL,
     creatorWallet: CREATOR_WALLET,
+    pool: {
+      requireX: REQUIRE_X_FOR_POOL,
+      tokenMint: TOKEN_MINT || null,
+      minTokenBalance: TOKEN_MINT ? MIN_TOKEN_BALANCE : null,
+      tokenSymbol: TOKEN_SYMBOL
+    },
     minGift: MIN_GIFT_SOL,
     maxGift: MAX_GIFT_SOL
   });
@@ -1033,6 +1112,7 @@ initDb()
       console.log(`📧 Email sender: ${SENDER_EMAIL} | Brevo key ${process.env.BREVO_API_KEY ? 'set' : 'MISSING'}`);
       console.log(`🪙 Solana network: ${SOLANA_NETWORK.toUpperCase()} (${SOLANA_RPC_URL})`);
       console.log(`🐦 X linking: tweets tag ${PROJECT_X_HANDLE ? '@' + PROJECT_X_HANDLE : '(PROJECT_X_HANDLE not set - using $secretshiba)'}`);
+      console.log(`🎯 Secret Shiba pool: ${REQUIRE_X_FOR_POOL ? 'verified X required' : 'X not required'}${TOKEN_MINT ? `, must hold ${MIN_TOKEN_BALANCE} ${TOKEN_SYMBOL}` : ', token requirement off (TOKEN_MINT not set)'}`);
       console.log(`🔐 Admin tools ${process.env.ADMIN_PASSWORD ? 'enabled' : 'disabled (set ADMIN_PASSWORD to enable)'}`);
     });
   })
