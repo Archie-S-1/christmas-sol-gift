@@ -333,7 +333,7 @@ const lastSentAt = new Map();
 
 // Sender MUST be a verified sender in Brevo (Settings > Senders, domains, IPs)
 const SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'archie.swarbrick1@gmail.com';
-const SENDER_NAME = process.env.BREVO_SENDER_NAME || 'Christmas SOL Gift';
+const SENDER_NAME = process.env.BREVO_SENDER_NAME || 'Secret Shiba';
 
 // Send a code email via Brevo. Returns { ok: true } or { ok: false, error }
 async function sendCodeEmail(email, code, purpose = 'verify') {
@@ -345,8 +345,8 @@ async function sendCodeEmail(email, code, purpose = 'verify') {
 
   const isLogin = purpose === 'login';
   const subject = isLogin
-    ? `Your login code: ${code} - Christmas SOL Gift 🎄`
-    : `Your verification code: ${code} - Christmas SOL Gift 🎄`;
+    ? `Your login code: ${code} - $secretshiba 🎅`
+    : `Your verification code: ${code} - $secretshiba 🎅`;
 
   try {
     await axios.post('https://api.brevo.com/v3/smtp/email', {
@@ -355,14 +355,15 @@ async function sendCodeEmail(email, code, purpose = 'verify') {
       subject,
       htmlContent: `
         <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0f1b2d; color: #ffffff; border-radius: 8px;">
-          <h2 style="color: #ffd700;">${isLogin ? 'Log in to' : 'Welcome to'} Christmas SOL Gift 🎄</h2>
+          <h2 style="color: #ffd700;">${isLogin ? 'Log in to' : 'Welcome to'} $secretshiba 🎅🐕</h2>
+          <p style="color: #cccccc;">Who's your Secret Shiba? 👀</p>
           <p>Your ${isLogin ? 'login' : 'verification'} code is:</p>
           <p style="font-family: monospace; font-size: 32px; letter-spacing: 6px; color: #ffd700; font-weight: bold;">${code}</p>
           <p>Enter this code on the website. It expires in 1 hour.</p>
           <p style="color: #aaaaaa; font-size: 12px;">If you didn't request this, you can ignore this email.</p>
         </div>
       `,
-      textContent: `Your Christmas SOL Gift ${isLogin ? 'login' : 'verification'} code is ${code}. It expires in 1 hour.`
+      textContent: `Your $secretshiba ${isLogin ? 'login' : 'verification'} code is ${code}. It expires in 1 hour.`
     }, {
       headers: { 'api-key': brevoApiKey, 'Content-Type': 'application/json' },
       timeout: 15000

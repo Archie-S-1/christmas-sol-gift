@@ -3,7 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Christmas SOL Gift 🎄</title>
+  <title>$secretshiba 🎅🐕 Who's your Secret Shiba?</title>
+  <meta name="description" content="Who's your Secret Shiba? 👀 Gift SOL to a random member of the $secretshiba community this Christmas.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Poppins:wght@500;600&display=swap" rel="stylesheet">
   <style>
     * {
       margin: 0;
@@ -87,6 +91,9 @@
     }
 
     .navbar-title {
+      font-family: 'Luckiest Guy', 'Segoe UI', sans-serif;
+      font-weight: normal !important;
+      letter-spacing: 0.5px;
       font-size: 1.5em;
       font-weight: bold;
       color: #ffd700;
@@ -198,15 +205,22 @@
     }
 
     h1 {
-      font-size: 3em;
-      margin-bottom: 10px;
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+      font-family: 'Luckiest Guy', 'Segoe UI', sans-serif;
+      font-weight: normal;
+      font-size: 5em;
+      line-height: 1.05;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
       color: #ffd700;
+      text-shadow: 4px 4px 0 #9c121c, 6px 6px 14px rgba(0, 0, 0, 0.45);
     }
 
     .subtitle {
-      font-size: 1.2em;
-      color: #ff6b6b;
+      font-family: 'Poppins', 'Segoe UI', sans-serif;
+      font-weight: 600;
+      font-size: 1.5em;
+      color: #ffffff;
+      text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.6);
     }
 
     .error-message {
@@ -242,7 +256,10 @@
         grid-template-columns: 1fr;
       }
       h1 {
-        font-size: 2em;
+        font-size: 3.2em;
+      }
+      .subtitle {
+        font-size: 1.15em;
       }
       .navbar {
         padding: 0 15px;
@@ -747,7 +764,7 @@
 
   <!-- Navigation Bar -->
   <div class="navbar">
-    <div class="navbar-title">🎄 Christmas SOL Gift</div>
+    <div class="navbar-title">🎅🐕 $secretshiba</div>
     <div class="navbar-right">
       <span class="network-badge" id="networkBadge" style="display: none;">🧪 DEVNET</span>
       <button class="profile-button wallet-button" id="walletBtn" onclick="connectWallet(true)">👻 <span class="wallet-label" id="walletLabel">Connect Phantom</span></button>
@@ -760,8 +777,8 @@
 
   <div class="container">
     <header>
-      <h1>Spread Holiday Cheer with SOL</h1>
-      <p class="subtitle">Join the Christmas giving tradition</p>
+      <h1>$secretshiba</h1>
+      <p class="subtitle">Who's your Secret Shiba? 👀</p>
     </header>
 
     <div id="errorMessage" class="error-message"></div>
