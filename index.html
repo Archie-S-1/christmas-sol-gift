@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Christmas SOL Gift</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0"></script>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Comfortaa:wght@400;700&display=swap" rel="stylesheet">
   <style>
     * {
@@ -652,11 +651,9 @@
   </div>
 
   <script>
-    const SUPABASE_URL = 'https://dciojaucxwtbgsycjfyx.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRjaW9qYXVjd3d0YmdzeWNqZnl4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA3MDE5NTUsImV4cCI6MjEwNjI3Nzk1NX0.AIXPcE9L_zb8ST_PBZ-D7dNoVOnSivPtKCBuhv9QVpw';
+    // Configuration
+    const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:3000' : 'https://your-railway-url.railway.app';
     const CREATOR_WALLET = '3ZJrAwCkJFqw8S21QaLfVUyAu8A9nBeKNw2UGt1W9sAm';
-
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     let selectedRecipient = null;
 
@@ -743,30 +740,25 @@
       }
 
       try {
-        console.log('Attempting to join with:', { name, address });
-        const { data, error } = await supabase
-          .from('users')
-          .insert([{ name, address }])
-          .select();
+        const response = await fetch(`${API_URL}/api/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, address })
+        });
 
-        if (error) {
-          console.error('Supabase error:', error);
-          throw error;
+        const data = await response.json();
+
+        if (!response.ok) {
+          alert('❌ ' + (data.error || 'Error joining community'));
+          return;
         }
+
         alert('✨ Welcome to the community!');
         document.getElementById('joinName').value = '';
         document.getElementById('joinAddress').value = '';
         loadLeaderboard();
       } catch (error) {
-        console.error('Full error:', error);
-        const errorMsg = error.message || 'Unknown error';
-        if (errorMsg.includes('duplicate')) {
-          alert('❌ This address is already registered');
-        } else if (errorMsg.includes('fetch')) {
-          alert('❌ Connection error - check your internet or try again in a moment');
-        } else {
-          alert('❌ Error: ' + errorMsg);
-        }
+        alert('❌ Connection error: ' + error.message);
       }
     }
 
@@ -781,9 +773,10 @@
       }
 
       try {
-        const { data: users, error } = await supabase.from('users').select('*');
-        if (error) throw error;
-        if (users.length === 0) {
+        const response = await fetch(`${API_URL}/api/users`);
+        const users = await response.json();
+
+        if (!response.ok || users.length === 0) {
           alert('No users in community yet');
           return;
         }
@@ -813,18 +806,18 @@
 
     async function confirmGift(fromName, amount, toAddress) {
       try {
-        const { error } = await supabase.from('gifts').insert([{
-          from_address: fromName,
-          to_address: toAddress,
-          amount: amount
-        }]);
+        const response = await fetch(`${API_URL}/api/gifts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from_address: fromName, to_address: toAddress, amount })
+        });
 
-        if (error) throw error;
+        const data = await response.json();
 
-        await supabase
-          .from('users')
-          .update({ total_gifted: selectedRecipient.total_gifted + amount })
-          .eq('address', toAddress);
+        if (!response.ok) {
+          alert('❌ Error: ' + (data.error || 'Failed to record gift'));
+          return;
+        }
 
         alert('🎉 Gift recorded!');
         document.getElementById('recipientDisplay').innerHTML = '';
@@ -852,16 +845,11 @@
     // Leaderboard
     async function loadLeaderboard() {
       try {
-        const { data: users, error: usersError } = await supabase
-          .from('users')
-          .select('*')
-          .order('total_gifted', { ascending: false })
-          .limit(10);
+        const usersResponse = await fetch(`${API_URL}/api/users`);
+        const users = await usersResponse.json();
 
-        if (usersError) throw usersError;
-
-        const { data: gifts, error: giftsError } = await supabase.from('gifts').select('*');
-        if (giftsError) throw giftsError;
+        const giftsResponse = await fetch(`${API_URL}/api/gifts`);
+        const gifts = await giftsResponse.json();
 
         const totalSOL = gifts.reduce((sum, gift) => sum + gift.amount, 0);
         const uniqueGifters = new Set(gifts.map(g => g.from_address)).size;
@@ -905,13 +893,8 @@
     // Gift Feed
     async function loadGiftFeed() {
       try {
-        const { data: gifts, error } = await supabase
-          .from('gifts')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(10);
-
-        if (error) throw error;
+        const response = await fetch(`${API_URL}/api/gifts`);
+        const gifts = await response.json();
 
         const feedHTML = gifts.map(gift => {
           const time = new Date(gift.created_at).toLocaleTimeString();
