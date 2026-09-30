@@ -412,6 +412,18 @@
       font-weight: bold;
     }
 
+.leaderboard-name a, .profile-value a {
+      color: #4da3ff;
+      font-weight: normal;
+      font-size: 0.9em;
+      text-decoration: none;
+      margin-left: 6px;
+    }
+
+    .leaderboard-name a:hover, .profile-value a:hover {
+      text-decoration: underline;
+    }
+
     .leaderboard-amount {
       color: #ffd700;
       font-weight: bold;
@@ -659,7 +671,7 @@
         <div id="signup" class="tab-content active">
           <div class="form-group">
             <label for="signupName">Name</label>
-            <input type="text" id="signupName" placeholder="Your name">
+            <input type="text" id="signupName" placeholder="Your name" maxlength="24">
           </div>
           <div class="form-group">
             <label for="signupEmail">Email</label>
@@ -700,7 +712,7 @@
     </div>
 
     <div class="leaderboard">
-      <h2>🏆 Leaderboard</h2>
+      <h2>🏆 Top Gifters</h2>
       <div id="leaderboardList">
         <div class="empty-message">No donations yet. Be the first! 🌟</div>
       </div>
@@ -741,11 +753,11 @@
       <h3>Edit Profile</h3>
       <div class="form-group">
         <label for="editName">Name</label>
-        <input type="text" id="editName" placeholder="Your name">
+        <input type="text" id="editName" placeholder="Your name" maxlength="24">
       </div>
       <div class="form-group">
         <label for="editTwitter">Twitter Handle</label>
-        <input type="text" id="editTwitter" placeholder="@yourhandle (optional)">
+        <input type="text" id="editTwitter" placeholder="@yourhandle (optional)" maxlength="16">
       </div>
       <button onclick="saveProfile()">Save Changes</button>
     </div>
@@ -778,6 +790,50 @@
     let currentUser = null;
     let selectedRecipient = null;
 
+    // Make user-typed text safe to show on the page
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function twitterLink(handle) {
+      const clean = String(handle || '').replace(/^@/, '');
+      if (!/^[A-Za-z0-9_]{1,15}$/.test(clean)) return '';
+      return `<a href="https://x.com/${clean}" target="_blank" rel="noopener noreferrer">@${clean}</a>`;
+    }
+
+    // Login token (kept in this browser only)
+    const TOKEN_KEY = 'sessionToken';
+    function getToken() {
+      try { return localStorage.getItem(TOKEN_KEY); } catch (e) { return null; }
+    }
+    function setToken(token) {
+      try { localStorage.setItem(TOKEN_KEY, token); localStorage.removeItem('userEmail'); } catch (e) {}
+    }
+    function clearToken() {
+      try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem('userEmail'); } catch (e) {}
+    }
+
+    // fetch() that sends the login token and handles expired logins
+    async function authFetch(path, options = {}) {
+      const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+      const token = getToken();
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_URL}${path}`, Object.assign({}, options, { headers }));
+      let data = {};
+      try { data = await res.json(); } catch (e) {}
+      if (res.status === 401 && currentUser) {
+        clearToken();
+        clearAuth();
+        showError(data.error || 'Your login has expired. Please log in again.');
+      }
+      return { res, data };
+    }
+
     function toggleProfileDropdown() {
       const dropdown = document.getElementById('profileDropdown');
       dropdown.classList.toggle('active');
@@ -803,23 +859,23 @@
       content.innerHTML = `
         <div class="profile-info">
           <div class="profile-label">Name</div>
-          <div class="profile-value">${currentUser.name}</div>
+          <div class="profile-value">${escapeHtml(currentUser.name)}</div>
         </div>
         <div class="profile-info">
           <div class="profile-label">Email</div>
-          <div class="profile-value">${currentUser.email}</div>
+          <div class="profile-value">${escapeHtml(currentUser.email)}</div>
         </div>
         <div class="profile-info">
           <div class="profile-label">Wallet</div>
-          <div class="profile-value">${currentUser.address}</div>
+          <div class="profile-value">${escapeHtml(currentUser.address)}</div>
         </div>
         <div class="profile-info">
           <div class="profile-label">Total Gifted</div>
-          <div class="profile-value">${(currentUser.total_gifted || 0).toFixed(2)} SOL</div>
+          <div class="profile-value">${Number(currentUser.total_gifted || 0).toFixed(2)} SOL</div>
         </div>
         <div class="profile-info">
           <div class="profile-label">Twitter</div>
-          <div class="profile-value">${currentUser.twitter ? `<a href="https://twitter.com/${currentUser.twitter}" target="_blank">@${currentUser.twitter}</a>` : 'Not set'}</div>
+          <div class="profile-value">${twitterLink(currentUser.twitter) || 'Not set'}</div>
         </div>
         <div class="profile-actions">
           <button onclick="openEditProfileModal()">Edit Profile</button>
@@ -834,28 +890,25 @@
       switchTab('login');
     }
 
-    // Load user from localStorage
-    function loadUser() {
-      const userEmail = localStorage.getItem('userEmail');
-      if (userEmail) {
-        fetch(`${API_URL}/api/users/email/${encodeURIComponent(userEmail)}`)
-          .then(res => res.json())
-          .then(data => {
-            if (!data.error) {
-              currentUser = data;
-              document.getElementById('authCard').classList.remove('show');
-              updateProfileDropdown();
-              loadStats();
-              loadLeaderboard();
-              loadGiftFeed();
-            } else {
-              clearAuth();
-            }
-          })
-          .catch(() => clearAuth());
-      } else {
-        document.getElementById('authCard').classList.add('show');
-        updateProfileDropdown();
+    // Load the logged-in user (if this browser has a login token)
+    async function loadUser() {
+      if (!getToken()) {
+        clearAuth();
+        return;
+      }
+      try {
+        const { res, data } = await authFetch('/api/me');
+        if (res.ok && !data.error) {
+          currentUser = data;
+          document.getElementById('authCard').classList.remove('show');
+          updateProfileDropdown();
+        } else if (res.status === 401) {
+          clearToken();
+          clearAuth();
+        }
+      } catch (e) {
+        // Server may be waking up; keep the token and try again on next load
+        console.error('Could not load user');
       }
     }
 
@@ -965,8 +1018,8 @@
       document.getElementById('signupAddress').value = '';
     }
 
-    function completeLogin(user, message) {
-      localStorage.setItem('userEmail', user.email);
+    function completeLogin(user, token, message) {
+      setToken(token);
       currentUser = user;
       closeVerificationModal();
       document.getElementById('loginEmail').value = '';
@@ -995,7 +1048,7 @@
           showError(data.error || 'Verification failed');
           return;
         }
-        completeLogin(data.user, codeMode === 'login' ? 'Welcome back! 🎄' : 'Email verified - welcome to the community! 🎉');
+        completeLogin(data.user, data.token, codeMode === 'login' ? 'Welcome back! 🎄' : 'Email verified - welcome to the community! 🎉');
       } catch (error) {
         showError('Network error. Please try again.');
       } finally {
@@ -1046,6 +1099,7 @@
 
     function clearAuth() {
       currentUser = null;
+      selectedRecipient = null;
       document.getElementById('authCard').classList.add('show');
       updateProfileDropdown();
       document.getElementById('recipientInfo').style.display = 'none';
@@ -1053,7 +1107,10 @@
     }
 
     function logout() {
-      localStorage.removeItem('userEmail');
+      if (getToken()) {
+        authFetch('/api/logout', { method: 'POST' }).catch(() => {});
+      }
+      clearToken();
       clearAuth();
       document.getElementById('signupName').value = '';
       document.getElementById('signupEmail').value = '';
@@ -1083,21 +1140,20 @@
       }
 
       try {
-        const res = await fetch(`${API_URL}/api/users/${currentUser.address}`, {
+        const { res, data } = await authFetch('/api/me', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, twitter: twitter || null })
         });
 
-        const data = await res.json();
         if (!res.ok) {
-          showError(data.error || 'Failed to update profile');
+          if (res.status !== 401) showError(data.error || 'Failed to update profile');
           return;
         }
 
-        currentUser.name = name;
-        currentUser.twitter = twitter || null;
+        currentUser = data.user || Object.assign(currentUser, { name, twitter: twitter.replace(/^@/, '') || null });
         closeEditProfileModal();
+        loadLeaderboard();
+        loadGiftFeed();
         updateProfileDropdown();
         showSuccess('Profile updated! ✨');
       } catch (error) {
@@ -1143,19 +1199,13 @@
       }
 
       try {
-        const res = await fetch(`${API_URL}/api/gifts`, {
+        const { res, data } = await authFetch('/api/gifts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from_address: currentUser.address,
-            to_address: selectedRecipient.address,
-            amount: amount
-          })
+          body: JSON.stringify({ to_address: selectedRecipient.address, amount: amount })
         });
 
-        const data = await res.json();
         if (!res.ok) {
-          showError(data.error || 'Failed to send gift');
+          if (res.status !== 401) showError(data.error || 'Failed to send gift');
           return;
         }
 
@@ -1195,19 +1245,13 @@
       }
 
       try {
-        const res = await fetch(`${API_URL}/api/gifts`, {
+        const { res, data } = await authFetch('/api/gifts', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            from_address: currentUser.address,
-            to_address: CREATOR_WALLET,
-            amount: amount
-          })
+          body: JSON.stringify({ to_address: CREATOR_WALLET, amount: amount })
         });
 
-        const data = await res.json();
         if (!res.ok) {
-          showError(data.error || 'Failed to send donation');
+          if (res.status !== 401) showError(data.error || 'Failed to send donation');
           return;
         }
 
@@ -1248,10 +1292,8 @@
         }
 
         list.innerHTML = data.map((user, idx) => {
-          let twitterLink = '';
-          if (user.twitter) {
-            twitterLink = ` <a href="https://twitter.com/${user.twitter}" target="_blank">@${user.twitter}</a>`;
-          }
+          const handle = twitterLink(user.twitter);
+          const handleHtml = handle ? ` ${handle}` : '';
 
           return `
             <div class="leaderboard-item ${idx < 3 ? 'top-giver' : ''}">
@@ -1259,11 +1301,11 @@
                 <div style="display: flex; align-items: center; gap: 15px;">
                   <span class="leaderboard-rank">#${idx + 1}</span>
                   <div>
-                    <div class="leaderboard-name">${user.name}${twitterLink}</div>
+                    <div class="leaderboard-name">${escapeHtml(user.name)}${handleHtml}</div>
                   </div>
                 </div>
               </div>
-              <div class="leaderboard-amount">${user.total_gifted || 0} SOL</div>
+              <div class="leaderboard-amount">${Number(user.total_gifted || 0).toFixed(2)} SOL gifted</div>
             </div>
           `;
         }).join('');
@@ -1286,14 +1328,17 @@
         list.innerHTML = data.map(gift => {
           const date = new Date(gift.created_at);
           const timeStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-          const fromName = gift.from_name || 'Anonymous';
+          const fromName = escapeHtml(gift.from_name || 'Anonymous');
+          const toName = escapeHtml(gift.to_name || 'a community member');
 
           return `
             <div class="gift-item">
               <div class="gift-header">
                 <span class="gift-from">${fromName}</span>
                 <span style="color: #aaa;"> sent </span>
-                <span class="gift-amount">${gift.amount} SOL</span>
+                <span class="gift-amount">${Number(gift.amount).toFixed(2)} SOL</span>
+                <span style="color: #aaa;"> to </span>
+                <span class="gift-to">${toName}</span>
               </div>
               <div class="gift-time">${timeStr}</div>
             </div>
