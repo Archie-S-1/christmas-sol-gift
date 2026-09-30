@@ -1,0 +1,11 @@
+{
+  "name": "christmas-sol-gift-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for Christmas SOL gifting platform",
+  "engines": {
+    "node": "18"
+  },
+  "scripts": {
+    "start": "echo 'Static site - no server needed'"
+  }
+}
