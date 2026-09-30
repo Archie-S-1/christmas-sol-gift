@@ -28,7 +28,7 @@
       left: 0;
       width: 100%;
       height: 100%;
-      background: linear-gradient(180deg, #1a3f7a 0%, #2d5a8f 50%, #1a472a 100%);
+      background: linear-gradient(180deg, #dc3545 0%, #1a472a 100%);
       z-index: 0;
     }
 
@@ -743,18 +743,30 @@
       }
 
       try {
+        console.log('Attempting to join with:', { name, address });
         const { data, error } = await supabase
           .from('users')
           .insert([{ name, address }])
           .select();
 
-        if (error) throw error;
+        if (error) {
+          console.error('Supabase error:', error);
+          throw error;
+        }
         alert('✨ Welcome to the community!');
         document.getElementById('joinName').value = '';
         document.getElementById('joinAddress').value = '';
         loadLeaderboard();
       } catch (error) {
-        alert('Error: ' + (error.message.includes('duplicate') ? 'This address is already registered' : error.message));
+        console.error('Full error:', error);
+        const errorMsg = error.message || 'Unknown error';
+        if (errorMsg.includes('duplicate')) {
+          alert('❌ This address is already registered');
+        } else if (errorMsg.includes('fetch')) {
+          alert('❌ Connection error - check your internet or try again in a moment');
+        } else {
+          alert('❌ Error: ' + errorMsg);
+        }
       }
     }
 
